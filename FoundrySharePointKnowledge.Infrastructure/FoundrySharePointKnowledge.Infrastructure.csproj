@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<Nullable>disable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<TargetFramework>net10.0</TargetFramework>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Azure.Core" Version="1.50.0" />
+		<PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
+		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+		<PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Graph" Version="5.97.0" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\FoundrySharePointKnowledge.Domain\FoundrySharePointKnowledge.Domain.csproj" />
+	</ItemGroup>
+</Project>
