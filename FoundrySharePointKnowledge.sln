@@ -6,6 +6,7 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
 	ProjectSection(SolutionItems) = preProject
 		.gitignore = .gitignore
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundrySharePointKnowledge.Common", "FoundrySharePointKnowledge.Common\FoundrySharePointKnowledge.Common.csproj", "{2ED97972-1AED-147B-8400-6AA759502CC4}"
@@ -15,6 +16,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundrySharePointKnowledge.Infrastructure", "FoundrySharePointKnowledge.Infrastructure\FoundrySharePointKnowledge.Infrastructure.csproj", "{98DC231A-1E4E-175B-B3E6-CECF4E757D13}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FoundrySharePointKnowledge.API", "FoundrySharePointKnowledge.API\FoundrySharePointKnowledge.API.csproj", "{FDA5C1E5-7504-4C08-8C0B-22C330615CEA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Search JSON", "Search JSON", "{6AF3CD97-B0BE-41BE-9C18-C837EB56DA8E}"
+	ProjectSection(SolutionItems) = preProject
+		Data Source.json = Data Source.json
+		Index.json = Index.json
+		Indexer.json = Indexer.json
+		Skillset.json = Skillset.json
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +50,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6AF3CD97-B0BE-41BE-9C18-C837EB56DA8E} = {8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2AAB387F-4E57-4A47-889B-208620FCCEA2}

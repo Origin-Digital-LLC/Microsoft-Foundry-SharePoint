@@ -1,0 +1,23 @@
+{
+  "@odata.context": "https://your-search-name.search.windows.net/$metadata#datasources/$entity",
+  "@odata.etag": "\"0x8DE2A7FFA225EB3\"",
+  "name": "sharepoint-foundry-datasource",
+  "description": null,
+  "type": "azureblob",
+  "subtype": null,
+  "indexerPermissionOptions": [],
+  "credentials": {
+    "connectionString": "ResourceId=/subscriptions/your-subscription-id/resourceGroups/your-resource-group-name/providers/Microsoft.Storage/storageAccounts/your-storage-account-name;"
+  },
+  "container": {
+    "name": "sharepoint-ingestion",
+    "query": null
+  },
+  "dataChangeDetectionPolicy": {
+    "@odata.type": "#Microsoft.Azure.Search.HighWaterMarkChangeDetectionPolicy",
+    "highWaterMarkColumnName": "metadata_storage_last_modified"
+  },
+  "dataDeletionDetectionPolicy": null,
+  "encryptionKey": null,
+  "identity": null
+}

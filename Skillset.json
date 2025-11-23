@@ -1,0 +1,92 @@
+{
+  "@odata.etag": "\"***\"",
+  "name": "sharepoint-foundry-skillset",
+  "skills": [
+    {
+      "@odata.type": "#Microsoft.Skills.Text.SplitSkill",
+      "name": "split-skill",
+      "context": "/document",
+      "defaultLanguageCode": "en",
+      "textSplitMode": "pages",
+      "maximumPageLength": 2000,
+      "pageOverlapLength": 500,
+      "maximumPagesToTake": 0,
+      "unit": "characters",
+      "inputs": [
+        {
+          "name": "text",
+          "source": "/document/content",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "textItems",
+          "targetName": "pages"
+        }
+      ]
+    },
+    {
+      "@odata.type": "#Microsoft.Skills.Text.AzureOpenAIEmbeddingSkill",
+      "name": "ai-skill",
+      "context": "/document/pages/*",
+      "resourceUri": "https://your-foundry-name.openai.azure.com",
+      "apiKey": "***",
+      "deploymentId": "text-embedding-3-small",
+      "dimensions": 1536,
+      "modelName": "text-embedding-3-small",
+      "inputs": [
+        {
+          "name": "text",
+          "source": "/document/pages/*",
+          "inputs": []
+        }
+      ],
+      "outputs": [
+        {
+          "name": "embedding",
+          "targetName": "TextVector"
+        }
+      ]
+    }
+  ],
+  "indexProjections": {
+    "selectors": [
+      {
+        "targetIndexName": "sharepoint-foundry",
+        "parentKeyFieldName": "ParentId",
+        "sourceContext": "/document/pages/*",
+        "mappings": [
+          {
+            "name": "Chunk",
+            "source": "/document/pages/*",
+            "inputs": []
+          },
+          {
+            "name": "TextVector",
+            "source": "/document/pages/*/TextVector",
+            "inputs": []
+          },
+          {
+            "name": "URL",
+            "source": "/document/URL",
+            "inputs": []
+          },
+          {
+            "name": "Title",
+            "source": "/document/Title",
+            "inputs": []
+          },
+          {
+            "name": "Timestamp",
+            "source": "/document/Timestamp",
+            "inputs": []
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "projectionMode": "skipIndexingParentDocuments"
+    }
+  }
+}

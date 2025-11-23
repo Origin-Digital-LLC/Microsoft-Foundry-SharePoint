@@ -1,0 +1,37 @@
+{
+  "@odata.context": "https://your-search-name.search.windows.net/$metadata#indexers/$entity",
+  "@odata.etag": "\"***\"",
+  "name": "sharepoint-foundry",
+  "description": null,
+  "dataSourceName": "sharepoint-foundry-datasource",
+  "skillsetName": "sharepoint-foundry-skillset",
+  "targetIndexName": "sharepoint-foundry",
+  "disabled": null,
+  "schedule": {
+    "interval": "PT5M",
+    "startTime": "2025-11-18T15:58:45.939Z"
+  },
+  "parameters": {
+    "batchSize": null,
+    "maxFailedItems": null,
+    "maxFailedItemsPerBatch": null,
+    "configuration": {
+      "parsingMode": "default"
+    }
+  },
+  "fieldMappings": [
+    {
+      "sourceFieldName": "metadata_storage_path",
+      "targetFieldName": "Title",
+      "mappingFunction": null
+    },
+    {
+      "sourceFieldName": "metadata_storage_last_modified",
+      "targetFieldName": "Timestamp",
+      "mappingFunction": null
+    }
+  ],
+  "outputFieldMappings": [],
+  "cache": null,
+  "encryptionKey": null
+}
