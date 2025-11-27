@@ -324,8 +324,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this.AddStandardField(index, nameof(dummyFileChunk.Content), false, false, false, false, true, LexicalAnalyzerName.EnMicrosoft, SearchFieldDataType.String);
 
                 //add vector fields
-                this.AddVectorField(index, nameof(dummyFileChunk.TitleVector), true, FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Compression);
-                this.AddVectorField(index, nameof(dummyFileChunk.ContentVector), false, FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Compression);
+                this.AddVectorField(index, nameof(dummyFileChunk.TitleVector), FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Compression);
+                this.AddVectorField(index, nameof(dummyFileChunk.ContentVector), FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Compression);
 
                 //return
                 await this._searchIndexClient.CreateIndexAsync(index);
@@ -390,7 +390,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this.AddStandardField(index, parentId, false, true, false, false, false, null, SearchFieldDataType.String);
                 this.AddStandardField(index, url, false, true, false, false, true, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
                 this.AddStandardField(index, chunkId, true, false, true, false, true, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
-                this.AddVectorField(index, textVector, true, FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Vectorizable);
+                this.AddVectorField(index, textVector, FSPKConstants.Search.Vectorization.Dimensions, FSPKConstants.Search.Profiles.Vectorizable);
                 this.AddStandardField(index, FSPKConstants.Search.Fields.Timestamp, false, false, false, false, false, null, SearchFieldDataType.DateTimeOffset);
 
                 //create index
@@ -795,14 +795,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Adds a vector field to the index.
         /// </summary>
-        private void AddVectorField(SearchIndex index, string name, bool isStored, int dimensions, string profileName)
+        private void AddVectorField(SearchIndex index, string name, int dimensions, string profileName)
         {
             //return
             index.Fields.Add(new SearchField(name, SearchFieldDataType.Collection(SearchFieldDataType.Single))
             {
                 //assemble object
                 IsHidden = false,
-                IsStored = isStored,
                 IsSearchable = true,
                 VectorSearchDimensions = dimensions,
                 VectorSearchProfileName = profileName
