@@ -67,24 +67,18 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             try
             {
                 //initialization
-                if (string.IsNullOrWhiteSpace(file?.URL))
-                {
-                    //error
-                    this._logger.LogError("Cannot index a null file.");
-                    return false;
-                }
+                this._logger.LogInformation($"Acquiring file {file?.ToString() ?? "N/A"}.");
 
                 //chunk file
-                this._logger.LogInformation($"Acquiring file {file}.");
                 SPFileChunk[] fileChunks = await this._foundryService.ChunkFileAsync(file);
                 IndexDocumentsAction<SPFileChunk>[] indexedDocuments = new IndexDocumentsAction<SPFileChunk>[fileChunks.Length];
 
                 //convert chunks to azure search documents
-                for (int d = 0; d < fileChunks.Length; d++)
+                for (int c = 0; c < fileChunks.Length; c++)
                 {
                     //batch each chunk
-                    SPFileChunk chunkedDocument = fileChunks[d];
-                    indexedDocuments[d] = IndexDocumentsAction.Upload(chunkedDocument);
+                    SPFileChunk chunkedDocument = fileChunks[c];
+                    indexedDocuments[c] = IndexDocumentsAction.Upload(chunkedDocument);
                 }
 
                 //index chunked documents
@@ -110,16 +104,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             try
             {
                 //initialization
-                if (string.IsNullOrWhiteSpace(file?.URL))
-                {
-                    //error
-                    this._logger.LogError("Cannot upload a null file.");
-                    return false;
-                }
+                this._logger.LogInformation($"Acquiring file {file?.ToString() ?? "N/A"}.");
 
                 //download file from sharepoint
-                this._logger.LogInformation($"Acquiring file {file}.");
-                byte[] fileContents = await this._foundryService.GetFileContentsAsync(file);
+                byte[] fileContents = await this._foundryService.GetFileContentsLeastPriviledgedAsync(file);
                 if (!fileContents?.Any() ?? true)
                 {
                     //error

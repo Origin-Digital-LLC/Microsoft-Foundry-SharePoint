@@ -15,8 +15,7 @@ namespace FoundrySharePointKnowledge.Common
             public const string Issuer = "https://sts.windows.net/";
             public const string Authorization = nameof(Authorization);
             public const string KeyDiscoveryEndpoint = "/discovery/keys";
-            public const string Instance = "https://login.microsoftonline.com/";
-            public const string GraphScope = "https://graph.microsoft.com/.default";
+            public const string Instance = "https://login.microsoftonline.com/";            
             public const string TokenLinkFormat = "Get a token by running [this]({0}) flow and pasting the result from the output body of the last activity.";
 
             public static class RSA
@@ -194,6 +193,19 @@ namespace FoundrySharePointKnowledge.Common
         {
             public const string Client = nameof(Foundry);
             public const string ModelId = "prebuilt-layout";
+        }
+
+        public static class Graph
+        {
+            public const string Version = "v1.0/";
+            public const string Scope = Graph.URL + ".default";
+            public const string URL = "https://graph.microsoft.com/";
+        }
+
+        public static class SharePoint
+        {
+            public const string Client = nameof(SharePoint);
+            public const string FileDownloadURLFormat = Graph.URL + Graph.Version + "sites/{0}/drives/{1}/items/{2}/content";
         }
 
         public static class ContentTypes

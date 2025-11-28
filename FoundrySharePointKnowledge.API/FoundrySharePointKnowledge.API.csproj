@@ -5,19 +5,19 @@
 		<TargetFramework>net10.0</TargetFramework>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Azure.Identity" Version="1.17.0" />
+		<PackageReference Include="Azure.Identity" Version="1.17.1" />
 		<PackageReference Include="Azure.Storage.Blobs" Version="12.26.0" />
-		<PackageReference Include="Microsoft.Identity.Web" Version="4.0.1" />
+		<PackageReference Include="Microsoft.Identity.Web" Version="4.1.1" />
 		<PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
-		<PackageReference Include="Microsoft.Identity.Web.UI" Version="4.0.1" />
-		<PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.6" />
-		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.6" />
-		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.6" />
-		<PackageReference Include="Microsoft.Identity.Web.DownstreamApi" Version="4.0.1" />
-		<PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.0.1" />
+		<PackageReference Include="Microsoft.Identity.Web.UI" Version="4.1.1" />
+		<PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="10.0.1" />
+		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.0.1" />
+		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Identity.Web.DownstreamApi" Version="4.1.1" />
+		<PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.1.1" />
 		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.10" NoWarn="NU1605" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.10" NoWarn="NU1605" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" NoWarn="NU1605" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" NoWarn="NU1605" />
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\FoundrySharePointKnowledge.Infrastructure\FoundrySharePointKnowledge.Infrastructure.csproj" />

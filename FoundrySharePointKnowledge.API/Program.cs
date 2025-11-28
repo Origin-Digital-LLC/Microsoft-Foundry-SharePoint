@@ -2,11 +2,12 @@ using System;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Net.Http.Headers;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
 using Microsoft.Graph;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.DependencyInjection;
@@ -107,22 +108,16 @@ namespace FoundrySharePointKnowledge.API
                     BearerFormat = FSPKConstants.Security.JWT,
                     Name = FSPKConstants.Security.Authorization,
                     Scheme = JwtBearerDefaults.AuthenticationScheme,
-                    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL]),
-                    Reference = new OpenApiReference
-                    {
-                        //assemble object
-                        Type = ReferenceType.SecurityScheme,
-                        Id = JwtBearerDefaults.AuthenticationScheme,
-                    }
+                    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL])                    
                 };
 
                 //add security
-                options.AddSecurityDefinition(jwtSecurityScheme.Reference.Id, jwtSecurityScheme);
-                options.AddSecurityRequirement(new OpenApiSecurityRequirement
+                options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, jwtSecurityScheme);
+                options.AddSecurityRequirement(document => new OpenApiSecurityRequirement()
                 {
-                     //assemble dictionary
-                     { jwtSecurityScheme, Array.Empty<string>() }
-                 });               
+                    //default jwt bearer with no scopes
+                    [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
+                });
             });
 
             //add clients
@@ -179,18 +174,18 @@ namespace FoundrySharePointKnowledge.API
             AzureSearchSettings searchSettings = await KeyVaultUtilities.GetAzureSearchSettingsAsync(keyVaultClient);
 
             //build client components
-            Uri url = new Uri(searchSettings.SearchURL);
+            Uri uri = new Uri(searchSettings.SearchURL);
             AzureKeyCredential credential = new AzureKeyCredential(searchSettings.SearchKey);
 
             //create search clients
-            searchClients.Add(FSPKConstants.Search.Indexes.Foundry, new SearchClient(url, FSPKConstants.Search.Indexes.Foundry, credential));
-            searchClients.Add(FSPKConstants.Search.Indexes.Vectorized, new SearchClient(url, FSPKConstants.Search.Indexes.Vectorized, credential));
+            searchClients.Add(FSPKConstants.Search.Indexes.Foundry, new SearchClient(uri, FSPKConstants.Search.Indexes.Foundry, credential));
+            searchClients.Add(FSPKConstants.Search.Indexes.Vectorized, new SearchClient(uri, FSPKConstants.Search.Indexes.Vectorized, credential));
 
             //return
             builder.Services.AddSingleton(searchClients);
             builder.Services.AddSingleton(searchSettings);
-            builder.Services.AddSingleton(new SearchIndexClient(url, credential));
-            builder.Services.AddSingleton(new SearchIndexerClient(url, credential));
+            builder.Services.AddSingleton(new SearchIndexClient(uri, credential));
+            builder.Services.AddSingleton(new SearchIndexerClient(uri, credential));
         }
 
         /// <summary>
@@ -225,15 +220,19 @@ namespace FoundrySharePointKnowledge.API
         private static void AddGraphClient(WebApplicationBuilder builder, EntraIDSettings entraIDSettings)
         {
             //initialization
-            ClientSecretCredentialOptions options = new ClientSecretCredentialOptions
+            string[] scopes = [FSPKConstants.Graph.Scope];
+            ClientSecretCredential clientSecretCredential = new ClientSecretCredential(entraIDSettings.TenantId.ToString(), entraIDSettings.ClientId.ToString(), entraIDSettings.ClientSecret);
+
+            //register sharepoint file downloader client
+            builder.Services.AddHttpClient(FSPKConstants.SharePoint.Client, client =>
             {
-                //assemble object
-                AuthorityHost = AzureAuthorityHosts.AzurePublicCloud
-            };
+                //authenticate client with graph's credentials (using the synchronous GetToken method here to ensure it is acquired before the request is issued)
+                AccessToken token = clientSecretCredential.GetToken(new TokenRequestContext(scopes));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(token.TokenType, token.Token);
+            });
 
             //return
-            ClientSecretCredential clientSecretCredential = new ClientSecretCredential(entraIDSettings.TenantId.ToString(), entraIDSettings.ClientId.ToString(), entraIDSettings.ClientSecret, options);
-            builder.Services.AddSingleton(new GraphServiceClient(clientSecretCredential, [FSPKConstants.Security.GraphScope]));
+            builder.Services.AddSingleton(new GraphServiceClient(clientSecretCredential, scopes));
         }
 
         /// <summary>

@@ -11,6 +11,7 @@ using Azure;
 using Azure.AI.DocumentIntelligence;
 
 using Microsoft.Graph;
+using Microsoft.Graph.Models;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
@@ -68,7 +69,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             double[] titleVector = await this.VectorizeTextAsync(file.Title);
 
             //send file to Foundry for analysis
-            byte[] fileContents = await this.GetFileContentsAsync(file);
+            byte[] fileContents = await this.GetFileContentsMostPriviledgedAsync(file);
             this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
             AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.ModelId, new BinaryData(fileContents));
             Operation<AnalyzeResult> result = await this._documentIntelligenceClient.AnalyzeDocumentAsync(WaitUntil.Completed, options);
@@ -105,13 +106,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         }
 
         /// <summary>
-        /// Downloads a file's contents from SharePoint via Microsoft Graph.
+        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
         /// </summary>
-        public async Task<byte[]> GetFileContentsAsync(SPFile file)
+        public async Task<byte[]> GetFileContentsMostPriviledgedAsync(SPFile file)
         {
             try
             {
-                //initialization
+                //initialization                
+                this.EnsureFile(file);
                 this._logger.LogInformation($"Downloading {file.Name} from SharePoint...");
 
                 //get file contents
@@ -125,6 +127,49 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         return memoryStream.ToArray();
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Unable to download {file.Name} from SharePoint.");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
+        /// </summary>
+        public async Task<byte[]> GetFileContentsLeastPriviledgedAsync(SPFile file)
+        {
+            try
+            {
+                //initialization                
+                this.EnsureFile(file);
+                this._logger.LogInformation($"Downloading {file.Name} from SharePoint...");
+
+                //parse the raw URL provided from the power automate flow
+                Uri uri = new Uri(file.URL);
+                string[] uriParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+                //build the URL form of the site id graph expects
+                string managedPath = uriParts[0];
+                string siteCollectionURL = uriParts[1];
+                string siteCollectionPath = $"{uri.Host}:/{managedPath}/{siteCollectionURL}";
+
+                //convert site URL to site id
+                Site site = await this._graphClient.Sites[siteCollectionPath].GetAsync();
+                Guid siteId = Guid.Parse(site.Id.Split(',')[1]);
+
+                //download file
+                using HttpResponseMessage response = await this._httpClientFactory.CreateClient(FSPKConstants.SharePoint.Client).GetAsync(string.Format(FSPKConstants.SharePoint.FileDownloadURLFormat, siteId, file.DriveId, file.ItemId));
+                response.EnsureSuccessStatusCode();
+
+                //get file contents
+                byte[] contents = await response.Content.ReadAsByteArrayAsync();
+                this._logger.LogInformation($"Acquired {contents.Length} bytes for {file.Name} from {siteCollectionPath}/{uriParts[2]}.");
+
+                //return
+                return contents;
             }
             catch (Exception ex)
             {
@@ -174,7 +219,25 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this._logger.LogError(ex, $"Unable to vectorize content: {result}");
                 throw;
             }
-        }      
+        }
+
+        /// <summary>
+        /// Throws an excpetion if any required fields are missing from the SPFile.
+        /// </summary>
+        private void EnsureFile(SPFile file)
+        {
+            //return
+            if (file == null)
+                throw new ArgumentNullException(nameof(file));
+            if (string.IsNullOrWhiteSpace(file.DriveId))
+                throw new ArgumentException("DriveId is required.", nameof(file));
+            if (string.IsNullOrWhiteSpace(file.ItemId))
+                throw new ArgumentException("ItemId is required.", nameof(file));
+            if (string.IsNullOrWhiteSpace(file.Name))
+                throw new ArgumentException("Name is required.", nameof(file));
+            if (string.IsNullOrWhiteSpace(file.URL))
+                throw new ArgumentException("URL is required.", nameof(file));
+        }
         #endregion
     }
 }
