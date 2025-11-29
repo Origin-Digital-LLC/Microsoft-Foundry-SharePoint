@@ -107,7 +107,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this._logger.LogInformation($"Acquiring file {file?.ToString() ?? "N/A"}.");
 
                 //download file from sharepoint
-                byte[] fileContents = await this._foundryService.GetFileContentsLeastPriviledgedAsync(file);
+                byte[] fileContents = await this._foundryService.GetFileContentsLeastPrivilegedAsync(file);
                 if (!fileContents?.Any() ?? true)
                 {
                     //error

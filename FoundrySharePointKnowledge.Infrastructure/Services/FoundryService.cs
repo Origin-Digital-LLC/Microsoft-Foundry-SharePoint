@@ -69,7 +69,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             double[] titleVector = await this.VectorizeTextAsync(file.Title);
 
             //send file to Foundry for analysis
-            byte[] fileContents = await this.GetFileContentsMostPriviledgedAsync(file);
+            byte[] fileContents = await this.GetFileContentsMostPrivilegedAsync(file);
             this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
             AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.ModelId, new BinaryData(fileContents));
             Operation<AnalyzeResult> result = await this._documentIntelligenceClient.AnalyzeDocumentAsync(WaitUntil.Completed, options);
@@ -108,7 +108,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
         /// </summary>
-        public async Task<byte[]> GetFileContentsMostPriviledgedAsync(SPFile file)
+        public async Task<byte[]> GetFileContentsMostPrivilegedAsync(SPFile file)
         {
             try
             {
@@ -139,7 +139,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
         /// </summary>
-        public async Task<byte[]> GetFileContentsLeastPriviledgedAsync(SPFile file)
+        public async Task<byte[]> GetFileContentsLeastPrivilegedAsync(SPFile file)
         {
             try
             {

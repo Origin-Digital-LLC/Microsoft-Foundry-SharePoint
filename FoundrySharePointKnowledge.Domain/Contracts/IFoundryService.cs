@@ -8,8 +8,8 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
     {
         #region Methods
         Task<SPFileChunk[]> ChunkFileAsync(SPFile file);
-        Task<byte[]> GetFileContentsMostPriviledgedAsync(SPFile file);
-        Task<byte[]> GetFileContentsLeastPriviledgedAsync(SPFile file);
+        Task<byte[]> GetFileContentsMostPrivilegedAsync(SPFile file);
+        Task<byte[]> GetFileContentsLeastPrivilegedAsync(SPFile file);
         #endregion
     }
 }
