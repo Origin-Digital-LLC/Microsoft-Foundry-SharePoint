@@ -26,7 +26,7 @@ namespace FoundrySharePointKnowledge.Infrastructure
             Task<Response<KeyVaultSecret>> azureStorageResourceIdSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Search.StorageAccountResourceId);
 
             //wait for work to finish
-            AggregateException error = await FSPKUtilities.WhenAllAsync(searchURLSecret, searchKeySecret);
+            AggregateException error = await FSPKUtilities.WhenAllAsync(searchURLSecret, searchKeySecret, azureStorageResourceIdSecret);
             if (error != null)
                 throw new Exception($"Unable to get Azure Search key vault secrets: {error}");
 
