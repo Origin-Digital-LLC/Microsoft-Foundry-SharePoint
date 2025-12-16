@@ -156,7 +156,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Name = "sharepoint-foundry-skillset";
             }
 
-            public static class Chuncking
+            public static class Chunking
             {
                 public const string Star = "*";
                 public const string Text = "text";
