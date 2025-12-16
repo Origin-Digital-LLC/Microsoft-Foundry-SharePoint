@@ -338,7 +338,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 SearchIndexer indexer = null;
                 SearchIndexerSkillset skillset = null;
                 SearchIndexerDataSourceConnection dataSourceConnection = null;                
-                string allDocumentPages = FSPKConstants.Search.Chucking.Document.CombineURL(FSPKConstants.Search.Chucking.Pages).CombineURL(FSPKConstants.Search.Chucking.Star);
+                string allDocumentPages = FSPKConstants.Search.Chuncking.Document.CombineURL(FSPKConstants.Search.Chuncking.Pages).CombineURL(FSPKConstants.Search.Chuncking.Star);
 
                 //get field names
                 VectorizedChunk dummyVectorizedChunk = new VectorizedChunk();
@@ -445,32 +445,32 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 catch { /* eat - the above method bombs if not found */ }
 
                 //create split skill
-                SplitSkill splitSkill = new SplitSkill([new InputFieldMappingEntry(FSPKConstants.Search.Chucking.Text)
+                SplitSkill splitSkill = new SplitSkill([new InputFieldMappingEntry(FSPKConstants.Search.Chuncking.Text)
                 {
                     //assemble object
-                    Source = FSPKConstants.Search.Chucking.Document.CombineURL(FSPKConstants.Search.Chucking.Content)
-                }], [new OutputFieldMappingEntry(FSPKConstants.Search.Chucking.TextItems)
+                    Source = FSPKConstants.Search.Chuncking.Document.CombineURL(FSPKConstants.Search.Chuncking.Content)
+                }], [new OutputFieldMappingEntry(FSPKConstants.Search.Chuncking.TextItems)
                 {
                     //assemble object
-                    TargetName = FSPKConstants.Search.Chucking.Pages
+                    TargetName = FSPKConstants.Search.Chuncking.Pages
                 }])
                 {
                     //assemble object
                     TextSplitMode = TextSplitMode.Pages,
                     DefaultLanguageCode = SplitSkillLanguage.En,
                     Name = FSPKConstants.Search.Skillset.SplitSkill,
-                    Context = FSPKConstants.Search.Chucking.Document,
-                    MaximumPageLength = FSPKConstants.Search.Chucking.MaximumPageLength,
-                    PageOverlapLength = FSPKConstants.Search.Chucking.PageOverlapLength,
-                    MaximumPagesToTake = FSPKConstants.Search.Chucking.MaximumPagesToTake
+                    Context = FSPKConstants.Search.Chuncking.Document,
+                    MaximumPageLength = FSPKConstants.Search.Chuncking.MaximumPageLength,
+                    PageOverlapLength = FSPKConstants.Search.Chuncking.PageOverlapLength,
+                    MaximumPagesToTake = FSPKConstants.Search.Chuncking.MaximumPagesToTake
                 };
 
                 //create ai skill
-                AzureOpenAIEmbeddingSkill aiSkill = new AzureOpenAIEmbeddingSkill([new InputFieldMappingEntry(FSPKConstants.Search.Chucking.Text)
+                AzureOpenAIEmbeddingSkill aiSkill = new AzureOpenAIEmbeddingSkill([new InputFieldMappingEntry(FSPKConstants.Search.Chuncking.Text)
                 {
                     //assemble object
                     Source = allDocumentPages
-                }], [new OutputFieldMappingEntry(FSPKConstants.Search.Chucking.Embedding)
+                }], [new OutputFieldMappingEntry(FSPKConstants.Search.Chuncking.Embedding)
                 {
                     //assemble object
                     TargetName = textVector
@@ -509,17 +509,17 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                             new InputFieldMappingEntry(url)
                             {
                                 //assemble object
-                                Source = FSPKConstants.Search.Chucking.Document.CombineURL(url)
+                                Source = FSPKConstants.Search.Chuncking.Document.CombineURL(url)
                             },
                              new InputFieldMappingEntry(title)
                             {
                                 //assemble object
-                                Source = FSPKConstants.Search.Chucking.Document.CombineURL(title)
+                                Source = FSPKConstants.Search.Chuncking.Document.CombineURL(title)
                             },
                             new InputFieldMappingEntry(FSPKConstants.Search.Fields.Timestamp)
                             {
                                 //assemble object
-                                Source = FSPKConstants.Search.Chucking.Document.CombineURL(FSPKConstants.Search.Fields.Timestamp)
+                                Source = FSPKConstants.Search.Chuncking.Document.CombineURL(FSPKConstants.Search.Fields.Timestamp)
                             }
                         }),
                     ])
