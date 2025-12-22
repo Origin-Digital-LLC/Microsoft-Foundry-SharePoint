@@ -8,8 +8,10 @@ using System.Security.Cryptography;
 
 using Microsoft.Graph;
 using Microsoft.OpenApi;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using WebApp = Microsoft.AspNetCore.Builder.WebApplication;
@@ -64,6 +66,10 @@ namespace FoundrySharePointKnowledge.API
                     //intercept message received to set validation parameters
                     OnMessageReceived = async (context) =>
                     {
+                        //ignore anonymous requests
+                        if (Program.IsAnonymousRequest(context.HttpContext))
+                            return;
+
                         //get fresh signing keys
                         SecurityKey[] signingKeys = await Program.GetIssuerSigningKeysAsync(context, entraIDSettings);
 
@@ -148,6 +154,15 @@ namespace FoundrySharePointKnowledge.API
         }
         #endregion
         #region Private Methods
+        /// <summary>
+        /// Skips token validation for anonymous requests.
+        /// </summary>
+        private static bool IsAnonymousRequest(HttpContext context)
+        {
+            //return
+            return context?.GetEndpoint()?.Metadata?.GetMetadata<IAllowAnonymous>() != null;
+        }
+
         /// <summary>
         /// Registers a singleton Key Vault client.
         /// </summary>
