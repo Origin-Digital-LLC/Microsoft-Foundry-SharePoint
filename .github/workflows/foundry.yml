@@ -1,0 +1,90 @@
+name: Foundry Infrastructure Deployment
+run-name: Foundry Infrastructure Deployment [${{ inputs.target-environment || github.run_id }}]
+
+on: 
+  workflow_dispatch:
+    inputs:      
+      target-environment:              
+        type: choice
+        default: Dev
+        required: true
+        description: The target Azure resource group environment.
+        options:
+          - Dev
+          - UAT
+          - Prd
+      resource-group-name-prefix:
+        required: true
+        default: <your-prefix-here>
+        description: The prefix for all Azure resource group names. PaaS components will have the lowercase-ed name [prefix]-[environment]-[resource name].
+      region:
+        required: true
+        default: northcentralus
+        description: The main Azure region used for PaaS components.
+      deployment-entra-enterprise-app-object-id:
+        required: true
+        default: <your-deployment-app-object-id-here>
+        description: The object id of the Entra Enterprise App (NOT the associated app registration's app id) used to provision PaaS components and other Azure infrastructure.      
+      foundry-sku:
+        default: S0
+        required: true
+        description: The SKU of the Azure Foundry AI resources.
+      foundry-portal-resource-name:
+        default: foundry01
+        required: true
+        description: The name of the parent Foundry Portal resource.
+      foundry-project-resource-name:
+        default: project01
+        required: true
+        description: The name of the child Foundry Project resource.
+      llm-name:
+        required: true
+        default: gpt-4.1-mini
+        description: The type of LLM AI model to use.
+      llm-capacity:
+        required: true
+        default: "501"
+        description: The LLM capacity (in units of 100,000 tokens per minute).
+      llm-version:
+        required: true
+        default: 2025-04-14
+        description: The LLM Azure Foundry API version.
+             
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+   
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v4     
+
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+      
+      - name: Deploy Foundry
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            #ensure script is executable
+            chmod +x $GITHUB_WORKSPACE/deployment/foundry.sh;
+
+            #execute script
+            $GITHUB_WORKSPACE/deployment/foundry.sh \
+              "${{ github.event.inputs.target-environment }}" \
+              "${{ github.event.inputs.resource-group-name-prefix }}" \
+              "${{ github.event.inputs.region }}" \
+              "${{ github.event.inputs.deployment-entra-enterprise-app-object-id }}" \
+              "${{ github.event.inputs.foundry-sku }}" \
+              "${{ github.event.inputs.foundry-portal-resource-name }}" \
+              "${{ github.event.inputs.foundry-project-resource-name }}" \
+              "${{ github.event.inputs.llm-name }}" \
+              "${{ github.event.inputs.llm-capacity }}" \
+              "${{ github.event.inputs.llm-version }}";
