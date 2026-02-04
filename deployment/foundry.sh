@@ -46,6 +46,7 @@ foundryDocumentIntelligenceEndpoint=${foundryComponents[2]};
 #searchFoundryRBACCognitiveServicesUser=$(ensure_rbac_access "$searchPrincipalId" "$foundryResourceId" "Cognitive Services User");
 
 #SAMPLE NEXT STEP: ensure foundry key vault secrets
+#keyVaultName=$(az keyvault list --resource-group "$resourceGroupName" --query "[0].name" --output "tsv");
 #foundryAccountKeyResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-account-key" "$foundryAccountKey");
 #foundryOpenAIEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-open-ai-endpoint" "$foundryOpenAIEndpoint");
 #foundryProjectEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-project-endpoint" "$foundryProjectEndpoint");
