@@ -428,7 +428,7 @@ function ensure_foundry()
 		echo "Granted principal $principalId foundry roles successfully." >&2;
 	fi
   	
- 	#get open ai metadata
+ 	#get foundry metadata
 	local projectAPI="api$projectURL";
 	local resourceId=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
   	local accountKey=$(az cognitiveservices account keys list --resource-group $resourceGroupName --name $name --query "key1" --output "tsv");
