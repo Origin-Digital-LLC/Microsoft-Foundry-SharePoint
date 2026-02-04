@@ -41,7 +41,7 @@ foundryProjectEndpoint=${foundryComponents[3]};
 foundryInferenceEndpoint=${foundryComponents[5]};
 foundryDocumentIntelligenceEndpoint=${foundryComponents[2]};
 
-#SAMPLE NEXT STEP: grant azure ai search RBAC access to foundry for search-based tools
+#SAMPLE NEXT STEP: grant azure ai search RBAC access to foundry
 #searchPrincipalId=$(az search service list --resource-group "$resourceGroupName" --query "[0].id" --output "tsv");
 #searchFoundryRBACCognitiveServicesUser=$(ensure_rbac_access "$searchPrincipalId" "$foundryResourceId" "Cognitive Services User");
 
