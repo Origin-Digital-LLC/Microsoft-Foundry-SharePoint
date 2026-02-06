@@ -383,15 +383,17 @@ function ensure_foundry()
    	echo "Ensuring foundry $name." >&2;
 	local foundry=$(az cognitiveservices account list --resource-group $resourceGroupName --query "[?name == '$name']" --output "tsv");
 	if [ -z "$foundry" ]; then
-		#create foundry
+		#create foundry portal normally
 		echo "Creating foundry $name." >&2;
   		local foundryId=$(az cognitiveservices account create --resource-group $resourceGroupName --name $name --location $region --custom-domain $name --kind "AIServices" --sku $sku --query "id" --output "tsv" --assign-identity --yes);
 
-   		#update foundry to allow project creation (not currently supported by azure cli)
+   		#build management API URL
   		local queryString="?api-version=2025-06-01";
-	 	local contentType="Content-Type=application/json";
-  		echo "Enabling foundry $foundryId project creation."  >&2;
+	 	local contentType="Content-Type=application/json";  		
 		local managmentURL="https://management.azure.com$foundryId";
+
+		#update the foundry portal to allow project creation (not currently supported by azure cli)
+		echo "Enabling foundry $foundryId project creation."  >&2;
    		foundry=$(az rest --method PATCH --uri "$managmentURL$queryString" --headers $contentType --body "{'properties': {'allowProjectManagement': true, }}");
 
   		#wait for update to finish (check every 10 seconds for up to 1 minute)
@@ -401,10 +403,10 @@ function ensure_foundry()
 	    	exit;
 	  	fi
 	
-	 	#create a default project
+	 	#create a default project with a managed identity
 	   	echo "Foundry updated successfully. Creating default project." >&2;
-		local project=$(az rest --method PUT --uri "$managmentURL$projectURL$queryString" --headers $contentType --body "{'location': '$region', 'properties': {'description': 'This project holds your $project agents.', 'displayName': '$project'}, 'identity': {'type': 'SystemAssigned'}}");
-	 	echo "Default foundry project created successfully." >&2;    
+		local foundryProject=$(az rest --method PUT --uri "$managmentURL$projectURL$queryString" --headers $contentType --body "{'location': '$region', 'properties': {'description': 'This project holds your $project agents.', 'displayName': '$project'}, 'identity': {'type': 'SystemAssigned'}}");
+	 	echo "Default foundry project $project created in foundry portal $name successfully." >&2;    
 	else
 		#foundry already exists
 		echo "Foundry $name already exists." >&2;
