@@ -410,12 +410,12 @@ function ensure_foundry()
 		echo "Foundry $name already exists." >&2;
 	fi
 
- 	#assign the given principal contributor permissions to the foundry
+ 	#assign foundry permissions to the given principal (if provided)
   	if [ -z "$principalId" ]; then
-   		#no principal given
+   		#no principal provided
 		echo "No principal id was provided to receive foundry roles." >&2;
    	else
-		#get the scope of the foundry
+		#get foundry's scope (id)
 		echo "Granting principal $principalId foundry roles." >&2;
 		local scope=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
 
