@@ -18,8 +18,8 @@ llmVersion="${10}";
 
 #apply naming conventions
 resourceGroupName="${resourceGroupName,,}-$environmentNormalized";
-foundryProjectName="$resourceGroupName-${foundryProjectName,,}";
-foundryPortalName="$resourceGroupName-${foundryPortalName,,}";
+foundryProjectName="$resourceGroupName-${foundryProjectName,,}01";
+foundryPortalName="$resourceGroupName-${foundryPortalName,,}01";
 
 #reference utilities
 source ./deployment/utilities.sh;
