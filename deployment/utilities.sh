@@ -362,7 +362,7 @@ function ensure_storage_account_static_website()
 	echo "$url";
 }
 
-#Creates a microsoft foundry instance by name if it doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|resourceId|inferenceEndpoint]
+#Creates a microsoft foundry instance by name if it doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|inferenceEndpoint|resourceId]
 function ensure_foundry()
 {
 	#initialization
@@ -441,7 +441,7 @@ function ensure_foundry()
 
 	#return
 	projectEndpoint="$projectEndpoint$projectAPI";
-  	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$resourceId|$inferenceEndpoint";
+  	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$inferenceEndpoint|$resourceId";
 }
 
 #Deploys a microsoft foundry model by name if it doesn't already exist. [Returns: nothing]
