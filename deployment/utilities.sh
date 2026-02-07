@@ -751,7 +751,7 @@ function get_web_app_deployment_credential()
 	echo $credentials >&2;
 }
 
-#Polls the given resource's provisioning status. [Returns: 0 (Succeeded)  or 1 (Failed)]
+#Polls the given resource's provisioning status. [Returns: 0 (Succeeded) or 1 (Failed)]
 function wait_for_az_rest_command()
 {
 	#initialization
