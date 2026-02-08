@@ -34,8 +34,8 @@ llmModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryP
 
 #parse foundry components
 foundryComponents=(${foundryResult//|/ });
-foundryAccountKey=${foundryComponents[0]};
 foundryResourceId=${foundryComponents[4]};
+foundryAccountKey=${foundryComponents[0]};
 foundryOpenAIEndpoint=${foundryComponents[1]};
 foundryProjectEndpoint=${foundryComponents[3]};
 foundryInferenceEndpoint=${foundryComponents[5]};
