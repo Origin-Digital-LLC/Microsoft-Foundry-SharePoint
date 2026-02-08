@@ -28,7 +28,7 @@ on:
       foundry-sku:
         default: S0
         required: true
-        description: The SKU of the Azure Foundry AI resources.
+        description: The SKU of the Microsoft Foundry resource.
       foundry-portal-resource-name:
         default: foundry01
         required: true
