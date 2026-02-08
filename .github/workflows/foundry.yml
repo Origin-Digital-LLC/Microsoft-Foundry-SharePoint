@@ -48,7 +48,7 @@ on:
       llm-version:
         required: true
         default: 2025-04-14
-        description: The LLM Azure Foundry API version.
+        description: The LLM API version.
              
 permissions:
   id-token: write
