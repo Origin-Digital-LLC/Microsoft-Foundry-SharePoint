@@ -415,7 +415,7 @@ function ensure_foundry()
  	#assign foundry permissions to the given principal (if provided)
   	if [ -z "$principalId" ]; then
    		#no principal provided
-		echo "No principal id was provided to receive foundry roles." >&2;
+		echo "No principal id was provided to be granted foundry roles." >&2;
    	else
 		#get foundry's scope (id)
 		echo "Granting principal $principalId foundry roles." >&2;
