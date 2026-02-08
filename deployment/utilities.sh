@@ -394,7 +394,7 @@ function ensure_foundry()
 
 		#update the foundry portal to allow project creation (not currently supported by azure cli)
 		echo "Enabling foundry $foundryId project creation."  >&2;
-   		foundry=$(az rest --method PATCH --uri "$managmentURL$queryString" --headers $contentType --body "{'properties': {'allowProjectManagement': true, }}");
+   		foundry=$(az rest --method PATCH --uri "$managmentURL$queryString" --headers $contentType --body "{'properties': {'allowProjectManagement': true}}");
 
   		#wait for update to finish (check every 10 seconds for up to 1 minute)
 		local projectResult=$(wait_for_az_rest_command "$foundryId" "10" "60");			
@@ -423,8 +423,8 @@ function ensure_foundry()
 
 		#add the principal to the roles
 		$(ensure_rbac_access "$principalId" "$scope" "$aiUserRoleId");
-		$(ensure_rbac_access "$principalId" "$scope" "$aiDeveloperRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$contributorRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$aiDeveloperRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesUserRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesContributorRoleId");
 		echo "Granted principal $principalId foundry roles successfully." >&2;
