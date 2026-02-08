@@ -54,4 +54,4 @@ foundryDocumentIntelligenceEndpoint=${foundryComponents[2]};
 #foundryDocumentIntelligenceEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-document-intelligence-endpoint" "$foundryDocumentIntelligenceEndpoint");
 
 #return
-echo "Completed $foundryPortalName Foundry deployment.";
+echo "Completed Foundry $foundryPortalName infrastructure deployment.";
