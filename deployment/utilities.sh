@@ -689,6 +689,28 @@ function ensure_entra_id_app_registration()
 	echo "$clientId|$clientSecret";
 }
 
+#Ensures a scope on an app. [Returns: Nothing]
+function expose_entra_id_app_scope()
+{
+	#initialization
+	local id=$2;
+	local name=$3;
+ 	local appId=$1;
+	local value=$4;
+	echo "Ensuring scope $name on Entra Id app $appId." >&2;
+
+	#create application uri
+	local uri="api://$appId";
+	local appURI=$(az ad app update --id $appId --identifier-uris $uri);
+
+	#update app
+	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":[],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
+	local appScope=$(az ad app update --id $appId --set "api=$json");
+
+	#return
+	echo "Exposed scope $name on Entra Id app $appId successfully." >&2;
+}
+
 #Grants and admin consents a permission to an app if it doesn't already exist. [Returns: Nothing]
 function assign_app_permission()
 {
