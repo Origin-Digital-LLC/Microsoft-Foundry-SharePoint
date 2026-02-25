@@ -7,7 +7,7 @@ using Azure.Security.KeyVault.Secrets;
 using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Settings;
 
-namespace FoundrySharePointKnowledge.Infrastructure
+namespace FoundrySharePointKnowledge.API.Utilities
 {
     /// <summary>
     /// These are the key vault helpers.
@@ -23,46 +23,69 @@ namespace FoundrySharePointKnowledge.Infrastructure
             //initialization
             Task<Response<KeyVaultSecret>> searchURLSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Search.URL);
             Task<Response<KeyVaultSecret>> searchKeySecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Search.Key);
+            Task<Response<KeyVaultSecret>> apiURLSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Search.APIURL);
             Task<Response<KeyVaultSecret>> azureStorageResourceIdSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Search.StorageAccountResourceId);
 
             //wait for work to finish
-            AggregateException error = await FSPKUtilities.WhenAllAsync(searchURLSecret, searchKeySecret, azureStorageResourceIdSecret);
+            AggregateException error = await FSPKUtilities.WhenAllAsync(searchURLSecret, searchKeySecret, apiURLSecret, azureStorageResourceIdSecret);
             if (error != null)
                 throw new Exception($"Unable to get Azure Search key vault secrets: {error}");
 
             //extract secrets
             string searchURL = KeyVaultUtilities.GetSecretValue(searchURLSecret?.Result, FSPKConstants.Settings.KeyVault.Search.URL);
             string searchKey = KeyVaultUtilities.GetSecretValue(searchKeySecret?.Result, FSPKConstants.Settings.KeyVault.Search.Key);
+            string apiURL = KeyVaultUtilities.GetSecretValue(apiURLSecret?.Result, FSPKConstants.Settings.KeyVault.Search.APIURL);
             string azureStorageResourceId = KeyVaultUtilities.GetSecretValue(azureStorageResourceIdSecret?.Result, FSPKConstants.Settings.KeyVault.Search.StorageAccountResourceId);
 
             //return
-            return new AzureSearchSettings(searchURL, searchKey, azureStorageResourceId);
+            return new AzureSearchSettings(searchURL, searchKey, azureStorageResourceId, apiURL);
         }
 
         /// <summary>
-        /// Gets Azure Foundry settings from Key Vault.
+        /// Gets Microsoft Foundry settings from Key Vault.
         /// </summary>
-        public static async Task<AzureFoundrySettings> GetAzureFoundrySettingsAsync(SecretClient keyVaultClient, string embeddingAPIVersion, string documentIntelligenceAPIVersion)
+        public static async Task<FoundrySettings> GetFoundrySettingsAsync(SecretClient keyVaultClient, string embeddingAPIVersion, string documentIntelligenceAPIVersion, string chatCompletionAPIVersion, string visionModelVersion)
         {
             //initialization
+            Task<Response<KeyVaultSecret>> llmModelSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.LLMModel);
             Task<Response<KeyVaultSecret>> accountKeySecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.AccountKey);
+            Task<Response<KeyVaultSecret>> imageModelSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.ImageModel);
             Task<Response<KeyVaultSecret>> embeddingModelSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.EmbeddingModel);
             Task<Response<KeyVaultSecret>> openAIEndpointSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.OpenAIEndpoint);
+            Task<Response<KeyVaultSecret>> inferenceEndpointSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.InferenceEndpoint);
             Task<Response<KeyVaultSecret>> documentIntelligenceEndpointSecret = keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.DocumentIntelligenceEndpoint);
 
             //wait for work to finish
-            AggregateException error = await FSPKUtilities.WhenAllAsync(accountKeySecret, documentIntelligenceEndpointSecret, openAIEndpointSecret, embeddingModelSecret);
+            AggregateException error = await FSPKUtilities.WhenAllAsync(llmModelSecret, accountKeySecret, imageModelSecret, documentIntelligenceEndpointSecret, openAIEndpointSecret, inferenceEndpointSecret, embeddingModelSecret);
             if (error != null)
-                throw new Exception($"Unable to get Azure Foundry key vault secrets: {error}");
+                throw new Exception($"Unable to get Microsoft Foundry key vault secrets: {error}");
 
             //extract secrets
+            string llmModel = KeyVaultUtilities.GetSecretValue(llmModelSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.LLMModel);
             string accountKey = KeyVaultUtilities.GetSecretValue(accountKeySecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.AccountKey);
+            string imageModel = KeyVaultUtilities.GetSecretValue(imageModelSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.ImageModel);
             string embeddingModel = KeyVaultUtilities.GetSecretValue(embeddingModelSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.EmbeddingModel);
             string openAIEndpoint = KeyVaultUtilities.GetSecretValue(openAIEndpointSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.OpenAIEndpoint);
+            string inferenceEndpoint = KeyVaultUtilities.GetSecretValue(inferenceEndpointSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.InferenceEndpoint);            
             string documentIntelligenceEndpoint = KeyVaultUtilities.GetSecretValue(documentIntelligenceEndpointSecret?.Result, FSPKConstants.Settings.KeyVault.Foundry.DocumentIntelligenceEndpoint);
 
             //return
-            return new AzureFoundrySettings(accountKey, openAIEndpoint, embeddingAPIVersion, embeddingModel, documentIntelligenceAPIVersion, documentIntelligenceEndpoint);
+            return new FoundrySettings(llmModel, accountKey, openAIEndpoint, embeddingAPIVersion, embeddingModel, documentIntelligenceAPIVersion, documentIntelligenceEndpoint, chatCompletionAPIVersion, visionModelVersion, imageModel, inferenceEndpoint);
+        }
+
+        /// <summary>
+        /// Gets Microsoft Foundry project settings from Key Vault.
+        /// </summary>
+        public static async Task<FoundryProjectSettings> GetFoundryProjectSettingsAsync(SecretClient keyVaultClient)
+        {
+            //initialization
+            Response<KeyVaultSecret> projectEndpointSecret = await keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.Foundry.ProjectEndpoint);
+
+            //extract secrets
+            string projectEndpoint = KeyVaultUtilities.GetSecretValue(projectEndpointSecret, FSPKConstants.Settings.KeyVault.Foundry.ProjectEndpoint);
+
+            //return
+            return new FoundryProjectSettings(projectEndpoint);
         }
 
         /// <summary>

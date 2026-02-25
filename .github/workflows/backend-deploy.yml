@@ -1,0 +1,99 @@
+name: CMFUG Backend Deploy
+run-name: CMFUG Backend Deploy [${{ inputs.target-environment || github.run_id }}]
+
+on: 
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+   inputs:
+      target-environment:              
+        type: choice
+        default: "20260303"
+        required: true        
+        description: Target Environment
+        options:
+        - "20260303"
+      resource-group-name-prefix:
+        required: true
+        default: cmfug
+        description: The prefix for all CMFUG Azure resource group names.
+      web-app-name:
+        type: string
+        required: true
+        default: api01
+        description: The short name of the Azure web app PaaS resource.    
+      solution-folder:
+        required: true
+        type: string    
+        default: 'src/backend'
+        description: The solution folder name.
+      project-folder:
+        required: true
+        type: string    
+        default: Zava.API
+        description: The web app project name.
+      dotnet-version:
+        required: true
+        type: string
+        default: 10.x
+        description: The full version number of the target .NET Core version.
+
+env:
+  drop_folder: CMFUG
+  web-app-name: ${{ inputs.web-app-name || 'api01' }}
+  dotnet-version: ${{ inputs.dotnet-version || '10.x' }}
+  project-folder: ${{ inputs.project-folder || 'Zava.API' }}
+  solution-folder: ${{ inputs.solution-folder || 'src/backend' }}  
+  target-environment: ${{ inputs.target-environment || '20260303' }}
+  resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'cmfug' }}
+  
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Deploy
+    
+    steps:      
+      - name: Checkout Branch
+        uses: actions/checkout@v4
+              
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+
+      - id: drop-folder
+        name: Configure Drop Folder
+        run: |
+          mkdir ${{ env.drop_folder }};
+
+      - id: build-path
+        name: Configure Build Path
+        run: |
+          echo 'path=./${{ env.solution-folder }}/${{ env.project-folder }}/${{ env.project-folder }}.csproj' >> $GITHUB_OUTPUT;
+
+      - id: paas-name
+        name: Configure Full Web App PaaS Name
+        run: |
+          declare -l paas;          
+          echo 'paas=${{ env.resource-group-name-prefix }}-${{ env.target-environment }}-${{ env.web-app-name }}' >> $GITHUB_OUTPUT;
+      
+      - name: Install .NET Core
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.dotnet-version }} 
+      
+      - name: Publish
+        run: |
+          dotnet build ${{ steps.build-path.outputs.path }} --configuration Release;
+          dotnet publish ${{ steps.build-path.outputs.path }} --configuration Release --output '${{ env.drop_folder }}';
+   
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with: 
+          package: '${{ env.drop_folder }}'
+          app-name: '${{ steps.paas-name.outputs.paas }}'

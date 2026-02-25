@@ -5,7 +5,7 @@ using FoundrySharePointKnowledge.Common;
 namespace FoundrySharePointKnowledge.Domain.Search
 {
     /// <summary>
-    /// This represented a vectorized chunk of content.
+    /// Document intelligence content.
     /// </summary>
     public class VectorizedContent
     {
@@ -26,7 +26,7 @@ namespace FoundrySharePointKnowledge.Domain.Search
         public override string ToString()
         {
             //return
-            return this.Type;
+            return $"{this.Type}@{this.Model}";
         }
         #endregion
     }

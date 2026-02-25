@@ -1,0 +1,85 @@
+name: CMFUG Frontend Deploy
+run-name: CMFUG Frontend Deploy [${{ inputs.target-environment || github.run_id }}]
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+   inputs:
+      target-environment:              
+        type: choice
+        default: "20260303"
+        required: true        
+        description: Target Environment
+        options:
+        - "20260303"
+      resource-group-name-prefix:
+        required: true
+        default: cmfug
+        description: The prefix for all CMFUG Azure resource group names.     
+      key-vault-name:
+        required: true
+        default: vault01
+        description: The PaaS resource name for the Key Vault instance.
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    name: Deploy
+    runs-on: ubuntu-latest
+    env:
+      branch-name: ${{ github.base_ref || github.ref_name }}
+      key-vault-name: ${{ inputs.key-vault-name || 'vault01' }}
+      target-environment: ${{ inputs.target-environment || '20260303' }}
+      resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'cmfug' }}
+    
+    steps:
+      - id: normalize-resource-names
+        name: Normalize Resource Names
+        run: |
+          #initialization
+          declare -l key_vault_name=${{ env.resource-group-name-prefix }}-${{ env.target-environment }}-${{ env.key-vault-name }};
+          
+          #return
+          echo "key_vault_name_normalized=$key_vault_name" >> $GITHUB_OUTPUT;
+
+      - name: Checkout Branch
+        uses: actions/checkout@v4
+              
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+
+      - id: get-key-vault-secrets
+        name: Get Key Vault Secrets
+        uses: Azure/get-keyvault-secrets@v1
+        with:
+          keyvault: ${{ steps.normalize-resource-names.outputs.key_vault_name_normalized }}
+          secrets: api-url,auth-client-id,auth-tenant-id,web-url,storage-account-connection-string
+
+      - name: Run NPM Commands
+        run: |
+          cd ./src/frontend;
+          npm install;
+          npm run build;
+        env:
+          VITE_API_URL: ${{ steps.get-key-vault-secrets.outputs.api-url }}
+          VITE_MSAL_REDIRECT_URI: ${{ steps.get-key-vault-secrets.outputs.web-url }}
+          VITE_MSAL_CLIENT_ID: ${{ steps.get-key-vault-secrets.outputs.auth-client-id }}
+          VITE_MSAL_SCOPE: "api://${{ steps.get-key-vault-secrets.outputs.auth-client-id }}/access_as_user"
+          VITE_MSAL_AUTHORITY: "https://login.microsoftonline.com/${{ steps.get-key-vault-secrets.outputs.auth-tenant-id }}/oauth2/v2.0/token"
+
+      - name: Purge Blobs
+        run: |
+          echo "Deleting all existing blobs.";
+          az storage blob delete-batch --connection-string "${{ steps.get-key-vault-secrets.outputs.storage-account-connection-string }}" --source "\$web" ;
+          
+      - name: Upload Blobs
+        run: |
+          echo "Deploying new blobs.";
+          az storage blob upload-batch --connection-string "${{ steps.get-key-vault-secrets.outputs.storage-account-connection-string }}" --source "./src/frontend/dist" --destination "\$web" --overwrite "true";

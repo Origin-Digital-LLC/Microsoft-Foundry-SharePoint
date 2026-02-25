@@ -1,243 +1,254 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Net.Http;
 using System.Text.Json;
+using System.ClientModel;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Azure;
-using Azure.AI.DocumentIntelligence;
+using Azure.Core;
+using Azure.AI.Projects;
+using Azure.AI.Projects.OpenAI;
 
-using Microsoft.Graph;
-using Microsoft.Graph.Models;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Domain.Search;
+using FoundrySharePointKnowledge.Domain.Foundry;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
-using FoundrySharePointKnowledge.Domain.SharePoint;
+
+using OpenAI.Responses;
+
+#pragma warning disable OPENAI001
 
 namespace FoundrySharePointKnowledge.Infrastructure.Services
 {
     /// <summary>
-    /// This interacts with Azure Foundry for document processing.
+    /// This interacts with Microsoft Foundry project agents.
     /// </summary>
     public class FoundryService : IFoundryService
     {
         #region Members
         private readonly ILogger<FoundryService> _logger;
-        private readonly GraphServiceClient _graphClient;
-        private readonly AzureFoundrySettings _foundrySettings;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly DocumentIntelligenceClient _documentIntelligenceClient;
+        private readonly FoundryProjectSettings _foundryProjectSettings;
+
         #endregion
         #region Initialization
         public FoundryService(ILogger<FoundryService> logger,
-                              GraphServiceClient graphClient,
-                              AzureFoundrySettings foundrySettings,
-                              IHttpClientFactory httpClientFactory,
-                              DocumentIntelligenceClient documentIntelligenceClient)
+                              FoundryProjectSettings foundryProjectSettings)
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this._graphClient = graphClient ?? throw new ArgumentNullException(nameof(graphClient));
-            this._foundrySettings = foundrySettings ?? throw new ArgumentNullException(nameof(foundrySettings));
-            this._httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
-            this._documentIntelligenceClient = documentIntelligenceClient ?? throw new ArgumentNullException(nameof(documentIntelligenceClient));
+            this._foundryProjectSettings = foundryProjectSettings ?? throw new ArgumentNullException(nameof(foundryProjectSettings));
         }
         #endregion
         #region Public Methods
         /// <summary>
-        /// Prepares a raw file for search ingestion by chunking and vectorizing its content.
+        /// Gets an array of engineer bios from a Foundry workflow.
         /// </summary>
-        [Obsolete("This method was part of an abandoned approach and has not been fully tested.")]
-        public async Task<SPFileChunk[]> ChunkFileAsync(SPFile file)
+        public async Task<AgentResponse<EngineerBio[]>> ExecuteExpertiseFinderWorkflowAsync(string prompt, TokenCredential tokenCredential)
         {
             //initialization
-            if (string.IsNullOrWhiteSpace(file?.ItemId) || string.IsNullOrWhiteSpace(file?.DriveId) || string.IsNullOrWhiteSpace(file?.Name) || string.IsNullOrWhiteSpace(file?.URL))
+            if (string.IsNullOrWhiteSpace(prompt))
             {
                 //error
-                this._logger.LogError($"Cannot chunk file {file?.URL ?? "N/A"}: all SharePoint fields are requied.");
-                return null;
+                this._logger.LogWarning("A blank prompt was requested.");
+                return new AgentResponse<EngineerBio[]>(Array.Empty<EngineerBio>());
             }
 
-            //vectorize file name
-            List<SPFileChunk> fileChunks = new List<SPFileChunk>();
-            double[] titleVector = await this.VectorizeTextAsync(file.Title);
+            //get agent
+            Dictionary<string, EngineerBio> engineers = new Dictionary<string, EngineerBio>();
+            AgentReference agentReference = new AgentReference(FSPKConstants.Workflows.ExpertiseWorkflow);
+            AIProjectClient client = new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, tokenCredential);
 
-            //send file to Foundry for analysis
-            byte[] fileContents = await this.GetFileContentsMostPrivilegedAsync(file);
-            this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
-            AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.ModelId, new BinaryData(fileContents));
-            Operation<AnalyzeResult> result = await this._documentIntelligenceClient.AnalyzeDocumentAsync(WaitUntil.Completed, options);
-
-            //check result
-            if (result.HasValue)
+            //create conversation
+            ProjectConversation conversation = await client.OpenAI.Conversations.CreateProjectConversationAsync();
+            using (this._logger.BeginScope(new Dictionary<string, object>
             {
-                //extract text content for each page
-                foreach (DocumentPage page in result.Value.Pages)
+                //assemble dictionary
+                { $"Workflow {nameof(conversation)}", conversation.Id }
+            }))
+            {
+                //excute workflow
+                ProjectResponsesClient responseClient = client.OpenAI.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
+                ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt);
+                int step = 0;
+
+                //get all agent response messages from the workflow's conversation
+                foreach (MessageResponseItem outputItem in response.Value.OutputItems.OfType<MessageResponseItem>())
                 {
-                    //collect each line
-                    this._logger.LogInformation($"Vectorizing page {page.PageNumber} of file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
-                    StringBuilder contentBuilder = new StringBuilder();
-                    foreach (DocumentLine line in page.Lines)
-                        contentBuilder.AppendLine(line.Content);
+                    //ignore the response of the intermediate email-extractor agent
+                    step++;
+                    if (step == 2)
+                        continue;
 
-                    //vectorize content
-                    string content = contentBuilder.ToString();
-                    double[] contentVector = await this.VectorizeTextAsync(content);
-
-                    //collect document
-                    fileChunks.Add(new SPFileChunk(file, page.PageNumber, content, titleVector, contentVector));    
-                }
-
-                //return
-                return fileChunks.ToArray();
-            }
-            else
-            {
-                //error
-                this._logger.LogError($"Document analysis failed for file {file.Name}.");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
-        /// </summary>
-        public async Task<byte[]> GetFileContentsMostPrivilegedAsync(SPFile file)
-        {
-            try
-            {
-                //initialization                
-                this.EnsureFile(file);
-                this._logger.LogInformation($"Downloading {file.Name} from SharePoint...");
-
-                //get file contents
-                using (Stream contentStream = await this._graphClient.Drives[file.DriveId].Items[file.ItemId].Content.GetAsync())
-                {
-                    //convert to byte array
-                    using (MemoryStream memoryStream = new MemoryStream())
+                    //get each piece of content
+                    foreach (ResponseContentPart content in outputItem.Content)
                     {
-                        //return
-                        await contentStream.CopyToAsync(memoryStream);
-                        return memoryStream.ToArray();
+                        //check content
+                        if (string.IsNullOrWhiteSpace(content?.Text))
+                        {
+                            //missing content
+                            this._logger.LogWarning($"An empty workflow reponse was received from {outputItem.Id}.");
+                            continue;
+                        }
+
+                        //parse json (not needed for JSON agents, but keeping for safety)
+                        string json = content.Text.TrimStart(FSPKConstants.Workflows.JSONDelimiter).TrimEnd(FSPKConstants.Workflows.JSONTerminator).ToString();
+
+                        try
+                        {
+                            //deserialized bios
+                            EngineerBiosWrapper engineerBios = JsonSerializer.Deserialize<EngineerBiosWrapper>(json);
+                            foreach (EngineerBio engineer in engineerBios.Engineers ?? Array.Empty<EngineerBio>())
+                            {
+                                //check email
+                                if (string.IsNullOrWhiteSpace(engineer?.Email))
+                                {
+                                    //missing email
+                                    this._logger.LogWarning($"No email address was found for {engineer?.FullName ?? "N/A"}.");
+                                    continue;
+                                }
+
+                                //build bios
+                                if (!engineers.ContainsKey(engineer.Email))
+                                {
+                                    //the workflow returns the core bio from the first agent
+                                    engineers.Add(engineer.Email, engineer);
+                                }
+                                else
+                                {
+                                    //the last agent enriches the bio with photo information
+                                    engineers[engineer.Email].PhotoURL = engineer.PhotoURL;
+                                    engineers[engineer.Email].PhotoDescription = engineer.PhotoDescription;
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            //error
+                            this._logger.LogError(ex, $"Error processing engineer bio from {json}.");
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                //error
-                this._logger.LogError(ex, $"Unable to download {file.Name} from SharePoint.");
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
-        /// </summary>
-        public async Task<byte[]> GetFileContentsLeastPrivilegedAsync(SPFile file)
-        {
-            try
-            {
-                //initialization                
-                this.EnsureFile(file);
-                this._logger.LogInformation($"Downloading {file.Name} from SharePoint...");
-
-                //parse the raw URL provided from the power automate flow
-                Uri uri = new Uri(file.URL);
-                string[] uriParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-                //build the URL form of the site id graph expects
-                string managedPath = uriParts[0];
-                string siteCollectionURL = uriParts[1];
-                string siteCollectionPath = $"{uri.Host}:/{managedPath}/{siteCollectionURL}";
-
-                //convert site URL to site id
-                Site site = await this._graphClient.Sites[siteCollectionPath].GetAsync();
-                Guid siteId = Guid.Parse(site.Id.Split(',')[1]);
-
-                //download file
-                using HttpResponseMessage response = await this._httpClientFactory.CreateClient(FSPKConstants.SharePoint.Client).GetAsync(string.Format(FSPKConstants.SharePoint.FileDownloadURLFormat, siteId, file.DriveId, file.ItemId));
-                response.EnsureSuccessStatusCode();
-
-                //get file contents
-                byte[] contents = await response.Content.ReadAsByteArrayAsync();
-                this._logger.LogInformation($"Acquired {contents.Length} bytes for {file.Name} from {siteCollectionPath}/{uriParts[2]}.");
 
                 //return
-                return contents;
-            }
-            catch (Exception ex)
-            {
-                //error
-                this._logger.LogError(ex, $"Unable to download {file.Name} from SharePoint.");
-                throw;
+                return new AgentResponse<EngineerBio[]>(engineers.Values.ToArray());
             }
         }
-        #endregion
-        #region Private Methods
+
         /// <summary>
-        /// Uses Azure Foundry to vectorize SharePoint content.
+        /// Facilitates a conversation with a Foundry agent.
         /// </summary>
-        private async Task<double[]> VectorizeTextAsync(string content)
+        public async Task<AgentResponse<string>> ConverseWithAgentAsync(ConversationPrompt prompt, FoundryCredential foundryCredential)
         {
             //initialization
-            string result = string.Empty;
-            this._logger.LogInformation($"Vectorizing content using model {this._foundrySettings.EmbeddingModel}: {content}");
+            if (string.IsNullOrWhiteSpace(prompt.UserMessage))
+            {
+                //error
+                this._logger.LogWarning("A blank agent prompt was detected.");
+                return null;
+            }
+
+            //create a foundry client as the current user
+            AgentRecord agent = null;
+            StringBuilder answer = new StringBuilder();
+            HashSet<string> annotations = new HashSet<string>();
+            AIProjectClient client = new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, foundryCredential);
 
             try
             {
-                //build request
-                HttpClient client = this._httpClientFactory.CreateClient(FSPKConstants.Foundry.Client);
-                var requestBody = new
+                //get agent                
+                switch (prompt.Agent)
                 {
-                    //assemble object
-                    input = content
-                };
+                    //hr
+                    case Agent.HR:
+                        agent = await client.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
+                        break;
 
-                //call open ai                
-                using HttpResponseMessage response = await client.PostAsync($"{FSPKConstants.Routing.Foundry.OpenAIDeployments.CombineURL(this._foundrySettings.EmbeddingModel).CombineURL(FSPKConstants.Routing.Foundry.Embedddings)}{this._foundrySettings.EmbeddingAPIVersion}",
-                                                                            new StringContent(JsonSerializer.Serialize(requestBody),
-                                                                            Encoding.UTF8,
-                                                                            FSPKConstants.ContentTypes.JSON));
+                    //invalid agent
+                    default:
+                        throw new InvalidOperationException($"{prompt.Agent} is not a supported agent.");
+                }
 
-                //get result
-                result = await response.Content.ReadAsStringAsync();
-                response.EnsureSuccessStatusCode();
+                //check agent
+                if (agent == null)
+                    throw new Exception($"Could not acquire a reference to agent {prompt.Agent}.");
 
-                //return
-                VectorizedContent vector = JsonSerializer.Deserialize<VectorizedContent>(result);
-                return vector?.Data.FirstOrDefault()?.Embedding ?? Array.Empty<double>();
+                //get conversation
+                ProjectConversation conversation = null;
+                if (string.IsNullOrWhiteSpace(prompt.ConversationId))
+                {
+                    //create conversation
+                    conversation = await client.OpenAI.Conversations.CreateProjectConversationAsync();
+
+                    //track conversation id
+                    prompt.ConversationId = conversation.Id;
+                    this._logger.LogInformation($"Started new {agent.Name} conversation {prompt.ConversationId}.");
+                }
+                else
+                {
+                    //resume conversation
+                    conversation = await client.OpenAI.Conversations.GetProjectConversationAsync(prompt.ConversationId);
+                    this._logger.LogInformation($"Resuming {agent.Name} conversation {prompt.ConversationId}.");
+                }
+
+                //converse with agent
+                using (this._logger.BeginScope(new Dictionary<string, object>
+                {
+                    //assemble dictionary
+                    { "Agent Id", agent.Id },
+                    { "Agent Name", agent.Name },
+                    { "Conversation", conversation.Id }
+                }))
+                {
+                    //send the user's message to the agent
+                    ProjectResponsesClient responseClient = client.OpenAI.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
+                    ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt.UserMessage);
+
+                    //get agent responses
+                    foreach (MessageResponseItem outputItem in response.Value.OutputItems.OfType<MessageResponseItem>())
+                    {
+                        //get each piece of content
+                        foreach (ResponseContentPart content in outputItem.Content)
+                        {
+                            //check content
+                            if (string.IsNullOrWhiteSpace(content?.Text))
+                            {
+                                //missing content
+                                this._logger.LogWarning($"An empty agent reponse was received from output {outputItem.Id}.");
+                                continue;
+                            }
+                            else
+                            {
+                                //capture answer
+                                answer.AppendLine(content.Text);
+                                this._logger.LogInformation($"Got agent response {content.Text}.");
+                            }
+
+                            //collect annotations
+                            foreach (ResponseMessageAnnotation annotation in content.OutputTextAnnotations)
+                            {
+                                //since the data source is sharepoint, only consider URL citataions
+                                if (annotation.Kind == ResponseMessageAnnotationKind.UriCitation)
+                                    annotations.Add(((UriCitationMessageAnnotation)annotation).Uri.ToString());
+                                else
+                                    this._logger.LogInformation($"Ignoring {annotation.Kind} annotation.");
+                            }
+                        }
+                    }
+
+                    //return
+                    return new AgentResponse<string>(answer.ToString().Trim(), prompt.ConversationId, annotations);
+                }
             }
             catch (Exception ex)
             {
                 //error
-                this._logger.LogError(ex, $"Unable to vectorize content: {result}");
+                this._logger.LogError(ex, "Unknown agent error.");
                 throw;
             }
         }
-
-        /// <summary>
-        /// Throws an excpetion if any required fields are missing from the SPFile.
-        /// </summary>
-        private void EnsureFile(SPFile file)
-        {
-            //return
-            if (file == null)
-                throw new ArgumentNullException(nameof(file));
-            if (string.IsNullOrWhiteSpace(file.DriveId))
-                throw new ArgumentException("DriveId is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.ItemId))
-                throw new ArgumentException("ItemId is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.Name))
-                throw new ArgumentException("Name is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.URL))
-                throw new ArgumentException("URL is required.", nameof(file));
-        }
-        #endregion
+        #endregion      
     }
 }

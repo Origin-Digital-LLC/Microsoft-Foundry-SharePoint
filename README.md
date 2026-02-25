@@ -2,6 +2,12 @@
 
 This is the companion code to my [blog series](https://www.origindigital.com/insights/microsoft-foundry-sharepoint-knowledge-integration) all about integrating Microsoft Foundry with SharePoint. I describe "The Easy Way" (using a SharePoint agent tool with an M365 license) and "The Hard Way" (a custom architecture to sync a document library into a Foundry Azure AI Search knowledge base).
 
+## Change Log
+| Version | Description |
+| --- | --- |
+| 1.0 | Initial release |
+| 2.0 | Major refactor: simplified authentication, added API support for frontend clients, implemented Foundry Project APIs for agent/workflow integration, and added Azure AI Search skills for image extraction & verbalization, entity recognition, and custom web APIs (for image vectorization). |
+
 ## Getting Started
 
 * The solution is written in C#, targeting Visual Studio 2026 and .NET 10.
@@ -11,7 +17,7 @@ This is the companion code to my [blog series](https://www.origindigital.com/ins
   
   ```
   {
-    "KeyVaultURL": "https://your-key-vault-name.vault.azure.net"
+    "AZURE_KEY_VAULT_URL": "https://your-key-vault-name.vault.azure.net"
   }
   ```
 
@@ -69,4 +75,6 @@ As mentioned above, I use a Power Platform solution with three Power Automate fl
 | Tenant Id | 11111111-2222-3333-4444-555555555555 | Your Entra ID tenant's unique identifier. |
 | SharePoint Site URL | https://your-tenant-name.sharepoint.com/sites/your-site-name | The absolute URL to the target SharePoint site collection. |
 | SharePoint Library Name | Documents | The title of the SharePoint document library to be reasoned over by your Foundry agent. |
+
+## Deployment
 

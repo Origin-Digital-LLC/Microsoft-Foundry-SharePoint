@@ -5,7 +5,7 @@ namespace FoundrySharePointKnowledge.Domain.SharePoint
     /// <summary>
     /// This represents an indexed SharePoint document.
     /// </summary>
-    public class SPFileChunk : SPFile
+    public record SPFileChunk : SPFile
     {
         #region Initialization
         public SPFileChunk() : base() 
@@ -31,11 +31,11 @@ namespace FoundrySharePointKnowledge.Domain.SharePoint
         }
         #endregion
         #region Properties
-        public Guid Id { get; set; }
-        public int PageNumber { get; set; }
-        public string Content { get; set; }
-        public double[] TitleVector { get; set; }
-        public double[] ContentVector { get; set; }
+        public Guid Id { get; init; }
+        public int PageNumber { get; init; }
+        public string Content { get; init; }
+        public double[] TitleVector { get; init; }
+        public double[] ContentVector { get; init; }
         #endregion       
     }
 }

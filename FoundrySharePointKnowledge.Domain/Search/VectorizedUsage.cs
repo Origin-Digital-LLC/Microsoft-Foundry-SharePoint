@@ -5,7 +5,7 @@ using FoundrySharePointKnowledge.Common;
 namespace FoundrySharePointKnowledge.Domain.Search
 {
     /// <summary>
-    /// This holds vectorization metadata.
+    /// Document intelligence usage.
     /// </summary>
     public class VectorizedUsage
     {
@@ -20,7 +20,7 @@ namespace FoundrySharePointKnowledge.Domain.Search
         public override string ToString()
         {
             //return
-            return $"{this.TotalTokens} total tokens.";
+            return this.TotalTokens.ToString();
         }
         #endregion
     }

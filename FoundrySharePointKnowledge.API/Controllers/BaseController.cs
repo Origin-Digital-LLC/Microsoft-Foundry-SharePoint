@@ -10,9 +10,9 @@ using FoundrySharePointKnowledge.Domain.Contracts;
 namespace FoundrySharePointKnowledge.API.Controllers
 {
     /// <summary>
-    /// This is the Foundry SharePoint Knowledge API.
+    /// This is the base class for all controllers.
     /// </summary>
-#if DEBUG
+#if false && DEBUG
     [AllowAnonymous()]
 #else
     [Authorize()]
@@ -28,11 +28,10 @@ namespace FoundrySharePointKnowledge.API.Controllers
         #region Initialization
         public BaseController(ILogger<T> logger,
                               ISearchService searchService)
-                                                              
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this._searchService = searchService ?? throw new ArgumentNullException(nameof(searchService));            
+            this._searchService = searchService ?? throw new ArgumentNullException(nameof(searchService));
         }
         #endregion      
     }

@@ -1,15 +1,16 @@
 ﻿using System.Threading.Tasks;
 
-using FoundrySharePointKnowledge.Domain.SharePoint;
+using Azure.Core;
+
+using FoundrySharePointKnowledge.Domain.Foundry;
 
 namespace FoundrySharePointKnowledge.Domain.Contracts
 {
     public interface IFoundryService
     {
-        #region Methods
-        Task<SPFileChunk[]> ChunkFileAsync(SPFile file);
-        Task<byte[]> GetFileContentsMostPrivilegedAsync(SPFile file);
-        Task<byte[]> GetFileContentsLeastPrivilegedAsync(SPFile file);
+        #region Methods      
+        Task<AgentResponse<string>> ConverseWithAgentAsync(ConversationPrompt prompt, FoundryCredential foundryCredential);
+        Task<AgentResponse<EngineerBio[]>> ExecuteExpertiseFinderWorkflowAsync(string prompt, TokenCredential tokenCredential);
         #endregion
     }
 }

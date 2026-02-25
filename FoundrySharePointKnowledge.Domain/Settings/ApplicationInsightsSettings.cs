@@ -5,7 +5,7 @@ namespace FoundrySharePointKnowledge.Domain.Settings
     /// <summary>
     /// This holds Azure Application Insights settings from Key Vault.
     /// </summary>
-    public class ApplicationInsightsSettings
+    public record ApplicationInsightsSettings
     {
         #region Initialization
         public ApplicationInsightsSettings(string connectionString, string instrumentationKey)
@@ -16,8 +16,8 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         }
         #endregion
         #region Properties
-        public string ConnectionString { get; private set; }
-        public string InstrumentationKey { get; private set; }
+        public string ConnectionString { get; init; }
+        public string InstrumentationKey { get; init; }
         #endregion        
     }
 }

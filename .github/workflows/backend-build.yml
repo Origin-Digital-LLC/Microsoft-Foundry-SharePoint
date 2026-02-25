@@ -1,0 +1,36 @@
+name: CMFUG Backend Build
+run-name: CMFUG Backend Build [${{ github.run_id }}]
+
+on:
+  pull_request
+env:
+  dotnet-version: '10.x'
+  project-folder: 'Zava.API'
+  solution-folder: 'src/backend'  
+  
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    
+    steps:      
+      - name: Checkout Branch
+        uses: actions/checkout@v4                 
+
+      - id: build-path
+        name: Configure Build Path
+        run: |
+          echo 'path=./${{ env.solution-folder }}/${{ env.project-folder }}/${{ env.project-folder }}.csproj' >> $GITHUB_OUTPUT;    
+      
+      - name: Install .NET Core
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.dotnet-version }} 
+      
+      - name: Build
+        run: |
+          dotnet build ${{ steps.build-path.outputs.path }} --configuration Release;  

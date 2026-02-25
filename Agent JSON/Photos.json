@@ -1,0 +1,39 @@
+{
+    "name": "Photos",
+    "strict": true,
+    "description": "Structured search results of engineer photos.",
+    "schema": 
+    {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "Engineers"],
+        "properties": 
+        {            
+            "Engineers": {
+                "type": "array",
+                "additionalProperties": false,
+                "description": "These are the engineers return from a query.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [ "Email", "PhotoURL", "PhotoDescription" ],
+                    "properties": 
+                    {                        
+                        "Email": {
+                            "type": "string",
+                            "description": "The engineer's email address."
+                        },
+                        "PhotoURL": {
+                            "type": "string",
+                            "description": "A link to the engineer's photo."
+                        },
+                        "PhotoDescription": {
+                            "type": "string",
+                            "description": "A description of the engineer's photo."
+                        }   
+                    }
+                }
+            }
+        }
+    }
+}

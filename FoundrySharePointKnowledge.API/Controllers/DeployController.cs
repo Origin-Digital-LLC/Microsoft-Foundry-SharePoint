@@ -51,13 +51,13 @@ namespace FoundrySharePointKnowledge.API.Controllers
 
             //deploy
             string result = trueForVectorizedFalseForVectorizable ? await this._searchService.EnsureVectorizedIndexAsync(indexName)
-                                                                  : await this._searchService.EnsureVectorizableBlobIndexAsync(indexName);
+                                                                  : await this._searchService.EnsureVectorizableBlobIndexAsync(indexName, FSPKConstants.Search.Indexes.Images);
 
             //return
             if (string.IsNullOrWhiteSpace(result))
                 return this.Ok($"Search index {indexName} deployed successfully.");
             else
-                return this.StatusCode(500, $"Failed to deploy search index {indexName}: {result}");
+                return this.StatusCode(500, $"Failed to deploy search: {result}");
 #else
             //return
             await Task.Yield();

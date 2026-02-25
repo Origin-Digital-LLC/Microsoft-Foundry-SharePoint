@@ -1,0 +1,130 @@
+name: CMFUG Infrastructure Deployment
+run-name: CMFUG Infrastructure Deployment [${{ inputs.target-environment || github.run_id }}]
+
+on: 
+  workflow_dispatch:
+    inputs:      
+      target-environment:              
+        type: choice
+        default: "20260303"
+        required: true
+        description: The target CMFUG Azure resource group.
+        options:
+          - "20260303"
+      resource-group-name-prefix:
+        required: true
+        default: cmfug
+        description: The prefix for all CMFUG Azure resource group names.
+      deployment-entra-enterprise-app-object-id:
+        required: true
+        default: 66bdfde0-9214-474a-bfef-4b85a5b2b2b5
+        description: The object id of the Entra Enterprise App used to provision PaaS and other Azure infrastructure.
+      root-domain:
+        required: true
+        default: originaccelerators.com
+        description: The root domain of this Nexus instance
+      sub-domain:
+        required: true
+        default: cmfug
+        description: The sub domain of this Nexus instance; the public URL will be https://[sub-domain].[root-domain]
+      primary-region:
+        required: true
+        default: northcentralus
+        description: The main Azure region used for PaaS components.
+      secondary-region:
+        required: true
+        default: eastus2
+        description: The fallback Azure region used for PaaS components that do not support the primary region.     
+      owner-email:
+        required: false
+        default: cdomino@origindigital.com
+        description: An administrator email address who will be granted owner access to key vault and entra id apps.     
+      localhost-url:
+        required: false
+        default: http://localhost:8080
+        description: The team local development environment URL for which CORS rules will be enabled in lower environments.
+      ai-SKU:
+        default: S0
+        required: true
+        description: The SKU of the Microsoft Foundry resource.
+      
+      #TODO: add these back in if GitHub ever allows more than 10 inputs...          
+      #llm-name:
+      #  required: true
+      #  default: "gpt-4.1"
+      #  description: The type of LLM AI model to use.      
+      #llm-capacity:
+      #  required: true
+      #  default: "501"
+      #  description: The LLM capacity (in units of 100,000 tokens per minute).      
+      #llm-version:
+      #  required: true
+      #  default: "2025-04-14"
+      #  description: The LLM Azure Foundry API version.      
+      #embedding-name:
+      #  required: true
+      #  default: "text-embedding-3-small"
+      #  description: The type of embeddings AI model to use.      
+      #embedding-capacity:
+      #  required: true
+      #  default: "511"
+      #  description: The embeddings capacity (in units of 100,000 tokens per minute).      
+      #embedding-version:
+      #  required: true
+      #  default: "1"
+      #  description: The embeddings Azure Foundry API version.
+        
+permissions:
+  id-token: write
+  contents: read
+
+env: 
+  INFRASTRUCTURE_WORKING_DIRECTORY: ./deployment
+
+jobs:
+  deploy-infrastructure:
+    name: Infrastructure Deployment Job
+    runs-on: ubuntu-latest
+    defaults:
+      run:        
+        working-directory: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+    steps:  
+      - name: Checkout Branch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4 
+        
+      - name: Azure CLI Login
+        if: github.event_name == 'workflow_dispatch'
+        uses: azure/login@v2
+        with:
+         creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+      
+      - name: Deploy Resource Group
+        if: github.event_name == 'workflow_dispatch'        
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            #initialization
+            chmod +x $GITHUB_WORKSPACE/deployment/infrastructure.sh;
+
+            #return
+            $GITHUB_WORKSPACE/deployment/infrastructure.sh \
+              "${{ github.event.inputs.target-environment }}" \
+              "${{ github.event.inputs.resource-group-name-prefix }}" \
+              "${{ github.event.inputs.deployment-entra-enterprise-app-object-id }}" \
+              "${{ github.event.inputs.root-domain }}" \
+              "${{ github.event.inputs.sub-domain }}" \
+              "${{ github.event.inputs.primary-region }}" \
+              "${{ github.event.inputs.secondary-region }}" \
+              "${{ github.event.inputs.owner-email }}" \
+              "${{ github.event.inputs.localhost-url }}" \
+              "${{ secrets.AZURE_DEPLOYMENT_AUTH_JWT_SECRET }}";              
+
+              #TODO: add these back in if GitHub ever allows more than 10 inputs...             
+              #"${{ github.event.inputs.llm-name }}" \
+              #"${{ github.event.inputs.llm-capacity }}" \
+              #"${{ github.event.inputs.llm-version }}" \
+              #"${{ github.event.inputs.embedding-name }}" \
+              #"${{ github.event.inputs.embedding-capacity }}" \
+              #"${{ github.event.inputs.embedding-version }}";              

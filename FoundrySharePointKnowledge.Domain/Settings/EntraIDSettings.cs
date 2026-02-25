@@ -1,11 +1,12 @@
 ﻿using System;
 
+using Azure.Identity;
+
+using FoundrySharePointKnowledge.Common;
+
 namespace FoundrySharePointKnowledge.Domain.Settings
 {
-    /// <summary>
-    /// This holds Entra ID settings from Key Vault.
-    /// </summary>
-    public class EntraIDSettings
+    public record EntraIDSettings
     {
         #region Initialization
         public EntraIDSettings(string tenantId, string clientId, string clientSecret)
@@ -17,9 +18,21 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         }
         #endregion
         #region Properties
-        public Guid TenantId { get; set; }
-        public Guid ClientId { get; set; }
-        public string ClientSecret { get; set; }
+        public Guid TenantId { get; init; }
+        public Guid ClientId { get; init; }
+        public string ClientSecret { get; init; }
+        public string Scope => $"{FSPKConstants.Security.TokenValidation.APIAudience}{this.ClientId}";
+        #endregion
+        #region Public Methods
+        /// <summary>
+        /// Builds a client secret credential.
+        /// </summary>
+        /// <returns></returns>
+        public ClientSecretCredential ToCredential()
+        {
+            //return
+            return new ClientSecretCredential(this.TenantId.ToString(), this.ClientId.ToString(), this.ClientSecret);
+        }
         #endregion
     }
 }

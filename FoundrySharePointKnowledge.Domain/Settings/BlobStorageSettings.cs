@@ -5,7 +5,7 @@ namespace FoundrySharePointKnowledge.Domain.Settings
     /// <summary>
     /// This holds Azure Storage Account settings from Key Vault.
     /// </summary>
-    public class BlobStorageSettings
+    public record BlobStorageSettings
     {
         #region Initialization
         public BlobStorageSettings(string name, string connectionString)
@@ -16,8 +16,8 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         }
         #endregion
         #region Properties
-        public string Name { get; private set; }
-        public string ConnectionString { get; private set; }
+        public string Name { get; init; }
+        public string ConnectionString { get; init; }
         #endregion
     }
 }

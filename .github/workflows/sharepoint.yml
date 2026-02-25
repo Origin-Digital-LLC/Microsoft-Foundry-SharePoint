@@ -1,0 +1,53 @@
+name: CMFUG SharePoint Deployment
+
+on: 
+  workflow_dispatch:
+    inputs:    
+      app-client-id:
+        required: true
+        default: 56eedcfb-bf4b-4e2a-a239-e64f8dc2b699
+        description: The client id of the Entra ID app to grant SharePoint access.
+      site-collection-url:
+        required: true
+        default: https://netorg14925960.sharepoint.com/teams/cmfug
+        description: The absolute URL to the target SharePoint site collection.
+      sharepoint-permissions:
+        required: true
+        default: Read
+        description: A string containing the SharePoint access to grant the app.
+    
+jobs:
+  run-pnp:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PnP PowerShell
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted;            
+          Install-Module PnP.PowerShell -Scope CurrentUser -Force -AllowClobber;
+
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+         creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+
+      - name: Get App Name
+        id: get-app-name
+        run:
+          $appName=az ad app show --id "${{ github.event.inputs.app-client-id }}" --query "displayName" --output "tsv";
+          "appName=$appName" >> $env:GITHUB_OUTPUT;
+
+      - name: Grant App SharePoint Access
+        shell: pwsh
+        run: |
+          #initialization
+          $password = ConvertTo-SecureString -String "${{ secrets.PNP_PFX_PASSWORD }}" -AsPlainText -Force;
+          Write-Host "Granting app ${{ steps.get-app-name.outputs.appName }} ${{ github.event.inputs.sharepoint-permissions }} permissions to ${{ github.event.inputs.site-collection-url }}.";
+          Connect-PnPOnline -Url "${{ github.event.inputs.site-collection-url }}" -ClientId "${{ secrets.PNP_CLIENT_ID }}" -Tenant "${{ secrets.PNP_TENANT_ID }}" -CertificateBase64Encoded "${{ secrets.PNP_PFX_BASE64 }}" -CertificatePassword $password;
+
+          #return
+          Grant-PnPAzureADAppSitePermission -Permissions "${{ github.event.inputs.sharepoint-permissions }}" -Site "${{ github.event.inputs.site-collection-url }}" -AppId "${{ github.event.inputs.app-client-id }}" -DisplayName "${{ steps.get-app-name.outputs.appName }}";
+          Write-Host "Done.";

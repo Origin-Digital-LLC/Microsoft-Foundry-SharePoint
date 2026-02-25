@@ -1,0 +1,53 @@
+{
+    "name": "Bios",
+    "strict": true,
+    "description": "Structured search results of engineer bios.",
+    "schema": 
+    {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "Engineers"],
+        "properties": 
+        {            
+            "Engineers": {
+                "type": "array",
+                "additionalProperties": false,
+                "description": "These are the engineers return from a query.",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [ "FullName", "Email", "TechnicalSkills", "SolutionSkills", "Experience" ],
+                    "properties": 
+                    {            
+                        "FullName": {
+                            "type": "string",
+                            "description": "The engineer's full name."
+                        },
+                        "Email": {
+                            "type": "string",
+                            "description": "The engineer's email address."
+                        },
+                        "TechnicalSkills": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "A list of the engineer's technical skills."
+                        },
+                        "SolutionSkills": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "A list of the engineer's solution skills."
+                        },
+                        "Experience": {
+                            "type": "string",
+                            "description": "A description of the engineer's experience."
+                        }
+                    }
+                }
+            }
+        }           
+    }
+}

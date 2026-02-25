@@ -1,17 +1,15 @@
 using System;
-using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Tasks;
 using System.Net.Http.Headers;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 
 using Microsoft.Graph;
 using Microsoft.OpenApi;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Identity.Web;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using WebApp = Microsoft.AspNetCore.Builder.WebApplication;
@@ -19,22 +17,27 @@ using WebApp = Microsoft.AspNetCore.Builder.WebApplication;
 using Azure;
 using Azure.Core;
 using Azure.Identity;
+using Azure.Data.Tables;
+using Azure.AI.Inference;
 using Azure.Storage.Blobs;
 using Azure.Search.Documents;
 using Azure.AI.DocumentIntelligence;
 using Azure.Search.Documents.Indexes;
 using Azure.Security.KeyVault.Secrets;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Infrastructure;
+using FoundrySharePointKnowledge.API.Utilities;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Infrastructure.Services;
 
+using OpenTelemetry.Logs;
+
 namespace FoundrySharePointKnowledge.API
 {
     /// <summary>
-    /// This hosts the Foundry SharePoint Knowledge API.
+    /// This is the Foundry SharePoint Knowledge API.
     /// </summary>
     public class Program
     {
@@ -46,7 +49,6 @@ namespace FoundrySharePointKnowledge.API
         {
             //initialization
             WebApplicationBuilder builder = WebApp.CreateBuilder(args);
-            TimeSpan tokenExpiration = TimeSpan.FromMinutes(FSPKConstants.Security.TokenExpirationMinutes);
 
             //get settings
             SecretClient keyVaultClient = Program.AddKeyVaultClient(builder);
@@ -54,48 +56,28 @@ namespace FoundrySharePointKnowledge.API
             ApplicationInsightsSettings applicationInsightsSettings = await KeyVaultUtilities.GetApplicationInsightsSettingsAsync(keyVaultClient);
 
             //configure authentication
-            builder.Services.AddAuthentication((options) =>
-            {
-                //set jwt bearer as default
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer((options) =>
-            {
-                //hook events
-                options.Events = new JwtBearerEvents
-                {
-                    //intercept message received to set validation parameters
-                    OnMessageReceived = async (context) =>
-                    {
-                        //ignore anonymous requests
-                        if (Program.IsAnonymousRequest(context.HttpContext))
-                            return;
-
-                        //get fresh signing keys
-                        SecurityKey[] signingKeys = await Program.GetIssuerSigningKeysAsync(context, entraIDSettings);
-
-                        //set validation parameters
-                        options.TokenValidationParameters = new TokenValidationParameters()
-                        {
-                            //assemble object
-                            ValidateIssuer = true,
-                            ValidateAudience = true,
-                            ValidateLifetime = true,
-                            ClockSkew = tokenExpiration,
-                            IssuerSigningKeys = signingKeys,
-                            ValidateIssuerSigningKey = true,
-                            ValidAudience = $"{FSPKConstants.Security.Audience}{entraIDSettings.ClientId}",
-                            ValidIssuer = $"{FSPKConstants.Security.Issuer.CombineURL(entraIDSettings.TenantId.ToString())}/"
-                        };
-                    }
-                };
-            });
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                            .AddMicrosoftIdentityWebApi((options) =>
+                            {
+                                //configure JWT tokens
+                                options.Audience = entraIDSettings.Scope;
+                            }, (options) =>
+                            {
+                                //configure MS identity
+                                options.AllowWebApiToBeAuthorizedByACL = true;
+                                options.ClientId = entraIDSettings.ClientId.ToString();
+                                options.TenantId = entraIDSettings.TenantId.ToString();
+                                options.Instance = FSPKConstants.Security.TokenValidation.Instance;
+                            }).EnableTokenAcquisitionToCallDownstreamApi((options) =>
+                            {
+                                //configure downstream api
+                                options.ClientSecret = entraIDSettings.ClientSecret;
+                            }).AddInMemoryTokenCaches();
 
             //configure logging
-            builder.Services.AddApplicationInsightsTelemetry((options) =>
-            {
-                //add application insights
-                options.ConnectionString = applicationInsightsSettings.ConnectionString;
-            });
+            builder.Services.AddOpenTelemetry().UseAzureMonitor((options) => options.ConnectionString = applicationInsightsSettings.ConnectionString);
+            builder.Services.Configure<OpenTelemetryLoggerOptions>(options => options.IncludeScopes = true);
+            builder.Logging.AddFilter<OpenTelemetryLoggerProvider>(level => level >= LogLevel.Information);
 
             //confgure api
             builder.Services.AddHttpClient();
@@ -114,7 +96,7 @@ namespace FoundrySharePointKnowledge.API
                     BearerFormat = FSPKConstants.Security.JWT,
                     Name = FSPKConstants.Security.Authorization,
                     Scheme = JwtBearerDefaults.AuthenticationScheme,
-                    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL])                    
+                    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL]),
                 };
 
                 //add security
@@ -126,11 +108,36 @@ namespace FoundrySharePointKnowledge.API
                 });
             });
 
-            //add clients
+            //check local settings
+            if (builder.Environment.IsDevelopment())
+            {
+                //add CORS
+                string[] allowedOrigins = builder.Configuration.GetSection(FSPKConstants.Settings.CorsAllowedOrigins).Get<string[]>();
+                builder.Services.AddCors(options =>
+                {
+                    //add policy
+                    options.AddPolicy(FSPKConstants.Security.DefaultCorsPolicy, policy =>
+                    {
+                        //configure policy
+                        policy.WithOrigins(allowedOrigins ?? Array.Empty<string>())
+                              .AllowAnyMethod()
+                              .AllowAnyHeader()
+                              .AllowCredentials();
+                    });
+                });
+            }
+
+            //add API clients
             Program.AddGraphClient(builder, entraIDSettings);
-            await Program.AddBlobClientAsync(builder, keyVaultClient);
-            await Program.AddFoundryClientAsync(builder, keyVaultClient);
             await Program.AddSearchClientsAsync(builder, keyVaultClient);
+
+            //add foundry clients
+            FoundrySettings foundrySettings = await Program.AddFoundryClientAsync(builder, keyVaultClient, entraIDSettings);
+            Program.AddImageEmbeddingsClient(builder, foundrySettings);
+
+            //add storage clients
+            string storageConnectionString = await Program.AddBlobClientAsync(builder, keyVaultClient);
+            Program.AddTableClient(builder, storageConnectionString);
 
             //dependency injection
             builder.Services.AddScoped<ISearchService, SearchService>();
@@ -141,10 +148,18 @@ namespace FoundrySharePointKnowledge.API
 
             //configure swagger
             app.UseSwagger();
-            app.UseSwaggerUI();
+            app.UseSwaggerUI(options =>
+            {
+                //configure ui
+                options.DocumentTitle = "Foundry SharePoint Knowledge API";
+            });
+
+            //configure CORS
+            app.UseHttpsRedirection();
+            if (builder.Environment.IsDevelopment())
+                app.UseCors(FSPKConstants.Security.DefaultCorsPolicy);
 
             //configure middleware
-            app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
@@ -154,15 +169,6 @@ namespace FoundrySharePointKnowledge.API
         }
         #endregion
         #region Private Methods
-        /// <summary>
-        /// Skips token validation for anonymous requests.
-        /// </summary>
-        private static bool IsAnonymousRequest(HttpContext context)
-        {
-            //return
-            return context?.GetEndpoint()?.Metadata?.GetMetadata<IAllowAnonymous>() != null;
-        }
-
         /// <summary>
         /// Registers a singleton Key Vault client.
         /// </summary>
@@ -193,6 +199,7 @@ namespace FoundrySharePointKnowledge.API
             AzureKeyCredential credential = new AzureKeyCredential(searchSettings.SearchKey);
 
             //create search clients
+            searchClients.Add(FSPKConstants.Search.Indexes.Images, new SearchClient(uri, FSPKConstants.Search.Indexes.Images, credential));
             searchClients.Add(FSPKConstants.Search.Indexes.Foundry, new SearchClient(uri, FSPKConstants.Search.Indexes.Foundry, credential));
             searchClients.Add(FSPKConstants.Search.Indexes.Vectorized, new SearchClient(uri, FSPKConstants.Search.Indexes.Vectorized, credential));
 
@@ -204,29 +211,44 @@ namespace FoundrySharePointKnowledge.API
         }
 
         /// <summary>
-        /// Registers settings and an HTTP client for Azure Foundry.
+        /// Registers settings and an HTTP client for Foundry.
         /// </summary>
-        private static async Task AddFoundryClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient)
+        private static async Task<FoundrySettings> AddFoundryClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient, EntraIDSettings entraIDSettings)
         {
             //initialization
+            string visionModelVersion = builder.Configuration[FSPKConstants.Settings.VisionModelVersion];
             string embeddingAPIVersion = builder.Configuration[FSPKConstants.Settings.EmbeddingAPIVersion];
+            string chatCompletionAPIVersion = builder.Configuration[FSPKConstants.Settings.ChatCompletionAPIVersion];
             string documentIntelligenceAPIVersion = builder.Configuration[FSPKConstants.Settings.DocumentIntelligenceAPIVersion];
-            AzureFoundrySettings foundrySettings = await KeyVaultUtilities.GetAzureFoundrySettingsAsync(keyVaultClient, embeddingAPIVersion, documentIntelligenceAPIVersion);
+
+            //load secrets
+            FoundryProjectSettings foundryProjectSettings = await KeyVaultUtilities.GetFoundryProjectSettingsAsync(keyVaultClient);
+            FoundrySettings foundrySettings = await KeyVaultUtilities.GetFoundrySettingsAsync(keyVaultClient, embeddingAPIVersion, documentIntelligenceAPIVersion, chatCompletionAPIVersion, visionModelVersion);
 
             //register settings
             builder.Services.AddSingleton(foundrySettings);
+            builder.Services.AddSingleton(foundryProjectSettings);
 
             //register embedding client
             builder.Services.AddHttpClient(FSPKConstants.Foundry.Client, client =>
             {
                 //register client
-                client.BaseAddress = new Uri(foundrySettings.OpenAIEndpoint);
+                client.BaseAddress = foundrySettings.OpenAIEndpoint;
                 client.DefaultRequestHeaders.Add(FSPKConstants.Security.Authorization, $"{JwtBearerDefaults.AuthenticationScheme} {foundrySettings.AccountKey}");
             });
 
             //return
-            builder.Services.AddSingleton(new DocumentIntelligenceClient(new Uri(foundrySettings.DocumentIntelligenceEndpoint),
-                                                                         new AzureKeyCredential(foundrySettings.AccountKey)));
+            builder.Services.AddSingleton(new DocumentIntelligenceClient(foundrySettings.DocumentIntelligenceEndpoint, new AzureKeyCredential(foundrySettings.AccountKey)));
+            return foundrySettings;
+        }
+
+        /// <summary>
+        /// Registers a Foundry client for image embeddings.
+        /// </summary>
+        private static void AddImageEmbeddingsClient(WebApplicationBuilder builder, FoundrySettings foundrySettings)
+        {
+            //return
+            builder.Services.AddSingleton(new ImageEmbeddingsClient(foundrySettings.InferenceEndpoint, new AzureKeyCredential(foundrySettings.AccountKey)));
         }
 
         /// <summary>
@@ -236,7 +258,7 @@ namespace FoundrySharePointKnowledge.API
         {
             //initialization
             string[] scopes = [FSPKConstants.Graph.Scope];
-            ClientSecretCredential clientSecretCredential = new ClientSecretCredential(entraIDSettings.TenantId.ToString(), entraIDSettings.ClientId.ToString(), entraIDSettings.ClientSecret);
+            ClientSecretCredential clientSecretCredential = entraIDSettings.ToCredential();
 
             //register sharepoint file downloader client
             builder.Services.AddHttpClient(FSPKConstants.SharePoint.Client, client =>
@@ -247,15 +269,16 @@ namespace FoundrySharePointKnowledge.API
             });
 
             //return
+            builder.Services.AddSingleton(entraIDSettings);
             builder.Services.AddSingleton(new GraphServiceClient(clientSecretCredential, scopes));
         }
 
         /// <summary>
         /// Configures an azure storage blob client.
         /// </summary>
-        private static async Task AddBlobClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient)
+        private static async Task<string> AddBlobClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient)
         {
-            //initialization
+            //initialization    
             BlobClientOptions options = new BlobClientOptions();
             BlobStorageSettings blobStorageSettings = await KeyVaultUtilities.GetBlobStorageSettingsAsync(keyVaultClient);
 
@@ -266,53 +289,35 @@ namespace FoundrySharePointKnowledge.API
 
             //configure retry
             options.Retry.Mode = RetryMode.Exponential;
-            options.Retry.Delay = FSPKConstants.BlobStorage.RetryPolicy.Backoff;
-            options.Retry.MaxRetries = FSPKConstants.BlobStorage.RetryPolicy.Attempts;
+            options.Retry.Delay = FSPKConstants.AzureStorage.RetryPolicy.Backoff;
+            options.Retry.MaxRetries = FSPKConstants.AzureStorage.RetryPolicy.Attempts;
 
             //return
-            builder.Services.AddSingleton(blobStorageSettings);
             builder.Services.AddSingleton(new BlobServiceClient(blobStorageSettings.ConnectionString, options));
+            builder.Services.AddSingleton(blobStorageSettings);
+            return blobStorageSettings.ConnectionString;
         }
 
         /// <summary>
-        /// https://medium.com/@bikashkshetri/add-msal-authentication-in-azure-functions-net-8-and-function-worker-runtime-dotnet-isolated-4b569e22f85a
+        /// Configures an azure storage table client.
         /// </summary>
-        private static async Task<SecurityKey[]> GetIssuerSigningKeysAsync(MessageReceivedContext context, EntraIDSettings entraIDSettings)
+        private static void AddTableClient(WebApplicationBuilder builder, string blobConnectionString)
         {
             //initialization
-            List<SecurityKey> keys = new List<SecurityKey>();
-            IHttpClientFactory httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
-            string jwksURL = FSPKConstants.Security.Instance.CombineURL(entraIDSettings.TenantId.ToString()).CombineURL(FSPKConstants.Security.KeyDiscoveryEndpoint);
+            TableClientOptions options = new TableClientOptions();
 
-            //get signing keys
-            string rawKeys = await httpClientFactory.CreateClient().GetStringAsync(jwksURL);
-            using JsonDocument parsedKeys = JsonDocument.Parse(rawKeys);
+            //configure telemetry
+            options.Diagnostics.IsLoggingEnabled = false;
+            options.Diagnostics.IsTelemetryEnabled = false;
+            options.Diagnostics.IsDistributedTracingEnabled = false;
 
-            //enumerate keys
-            foreach (JsonElement key in parsedKeys.RootElement.GetProperty(FSPKConstants.Security.RSA.Keys).EnumerateArray())
-            {
-                //extract rsa parameters
-                RSAParameters rsaParameters = new RSAParameters
-                {
-                    //assemble object
-                    Modulus = Base64UrlEncoder.DecodeBytes(key.GetProperty(FSPKConstants.Security.RSA.Modulus).GetString()),
-                    Exponent = Base64UrlEncoder.DecodeBytes(key.GetProperty(FSPKConstants.Security.RSA.Exponent).GetString())
-                };
-
-                //import rsa paramegers
-                RSA rsa = RSA.Create();
-                rsa.ImportParameters(rsaParameters);
-
-                //build rsa key
-                keys.Add(new RsaSecurityKey(rsa)
-                {
-                    //assemble object
-                    KeyId = key.GetProperty(FSPKConstants.Security.RSA.Kid).GetString()
-                });
-            }
+            //configure retry
+            options.Retry.Mode = RetryMode.Exponential;
+            options.Retry.Delay = FSPKConstants.AzureStorage.RetryPolicy.Backoff;
+            options.Retry.MaxRetries = FSPKConstants.AzureStorage.RetryPolicy.Attempts;
 
             //return
-            return keys.ToArray();
+            builder.Services.AddSingleton(new TableServiceClient(blobConnectionString, options));
         }
         #endregion
     }
