@@ -1,31 +1,33 @@
-name: CMFUG Infrastructure Deployment
-run-name: CMFUG Infrastructure Deployment [${{ inputs.target-environment || github.run_id }}]
+name: Foundry SharePoint Knowledge Infrastructure Deployment
+run-name: Foundry SharePoint Knowledge Infrastructure Deployment [${{ inputs.target-environment || github.run_id }}]
 
 on: 
   workflow_dispatch:
     inputs:      
       target-environment:              
         type: choice
-        default: "20260303"
+        default: Dev
         required: true
-        description: The target CMFUG Azure resource group.
+        description: The target Azure resource group.
         options:
-          - "20260303"
+          - Dev
+          - UAT
+          - Prod 
       resource-group-name-prefix:
         required: true
-        default: cmfug
-        description: The prefix for all CMFUG Azure resource group names.
+        default: <your azure resource group prefix>
+        description: The prefix for all Azure resource group names.
       deployment-entra-enterprise-app-object-id:
         required: true
-        default: 66bdfde0-9214-474a-bfef-4b85a5b2b2b5
+        default: <your entra id infrastructure app object id>
         description: The object id of the Entra Enterprise App used to provision PaaS and other Azure infrastructure.
       root-domain:
         required: true
-        default: originaccelerators.com
+        default: <your root domain>
         description: The root domain of this Nexus instance
       sub-domain:
         required: true
-        default: cmfug
+        default: <your sub domain>
         description: The sub domain of this Nexus instance; the public URL will be https://[sub-domain].[root-domain]
       primary-region:
         required: true
@@ -37,11 +39,11 @@ on:
         description: The fallback Azure region used for PaaS components that do not support the primary region.     
       owner-email:
         required: false
-        default: cdomino@origindigital.com
+        default: <your admin email address>
         description: An administrator email address who will be granted owner access to key vault and entra id apps.     
       localhost-url:
         required: false
-        default: http://localhost:8080
+        default: <your front end dev URL>
         description: The team local development environment URL for which CORS rules will be enabled in lower environments.
       ai-SKU:
         default: S0
@@ -49,7 +51,7 @@ on:
         description: The SKU of the Microsoft Foundry resource.
       
       #TODO: add these back in if GitHub ever allows more than 10 inputs...          
-      #llm-name:
+      #llm-model:
       #  required: true
       #  default: "gpt-4.1"
       #  description: The type of LLM AI model to use.      
@@ -61,25 +63,34 @@ on:
       #  required: true
       #  default: "2025-04-14"
       #  description: The LLM Azure Foundry API version.      
-      #embedding-name:
+      #embedding-model:
       #  required: true
       #  default: "text-embedding-3-small"
-      #  description: The type of embeddings AI model to use.      
+      #  description: The type of text embeddings AI model to use.      
       #embedding-capacity:
       #  required: true
       #  default: "511"
-      #  description: The embeddings capacity (in units of 100,000 tokens per minute).      
+      #  description: The text embeddings capacity (in units of 100,000 tokens per minute).      
       #embedding-version:
       #  required: true
       #  default: "1"
-      #  description: The embeddings Azure Foundry API version.
+      #  description: The text embeddings Azure Foundry API version.
+      #image-model:
+      #  required: true
+      #  default: "embed-v-4-0"
+      #  description: The type of image embeddings AI model to use.      
+      #image-capacity:
+      #  default: "5"
+      #  required: true
+      #  description: The image embeddings capacity (in units of 100,000 tokens per minute).      
+      #image-version:
+      #  required: true
+      #  default: "1"
+      #  description: The image embeddings Azure Foundry API version.
         
 permissions:
   id-token: write
   contents: read
-
-env: 
-  INFRASTRUCTURE_WORKING_DIRECTORY: ./deployment
 
 jobs:
   deploy-infrastructure:
@@ -87,7 +98,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:        
-        working-directory: ${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
+        working-directory: ./Deployment
     steps:  
       - name: Checkout Branch
         if: github.event_name == 'workflow_dispatch'
@@ -106,7 +117,7 @@ jobs:
           azcliversion: latest
           inlineScript: |
             #initialization
-            chmod +x $GITHUB_WORKSPACE/deployment/infrastructure.sh;
+            chmod +x $GITHUB_WORKSPACE/Deployment/infrastructure.sh;
 
             #return
             $GITHUB_WORKSPACE/deployment/infrastructure.sh \
@@ -122,9 +133,12 @@ jobs:
               "${{ secrets.AZURE_DEPLOYMENT_AUTH_JWT_SECRET }}";              
 
               #TODO: add these back in if GitHub ever allows more than 10 inputs...             
-              #"${{ github.event.inputs.llm-name }}" \
+              #"${{ github.event.inputs.llm-model }}" \
               #"${{ github.event.inputs.llm-capacity }}" \
               #"${{ github.event.inputs.llm-version }}" \
-              #"${{ github.event.inputs.embedding-name }}" \
+              #"${{ github.event.inputs.embedding-model }}" \
               #"${{ github.event.inputs.embedding-capacity }}" \
-              #"${{ github.event.inputs.embedding-version }}";              
+              #"${{ github.event.inputs.embedding-version }}" \
+              #"${{ github.event.inputs.image-model }}" \
+              #"${{ github.event.inputs.image-capacity }}" \
+              #"${{ github.event.inputs.image-version }}";

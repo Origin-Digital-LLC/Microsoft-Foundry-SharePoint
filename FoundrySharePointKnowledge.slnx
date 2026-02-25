@@ -1,12 +1,4 @@
 <Solution>
-  <Folder Name="/Solution Items/workflows/" Type="GitHub">
-    <File Path=".github/workflows/backend-build.yml" />
-    <File Path=".github/workflows/backend-deploy.yml" />
-    <File Path=".github/workflows/frontend-build.yml" />
-    <File Path=".github/workflows/frontend-deploy.yml" />
-    <File Path=".github/workflows/infrastructure.yml" />
-    <File Path=".github/workflows/sharepoint.yml" />
-  </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
     <File Path="README.md" />
@@ -15,6 +7,17 @@
     <File Path="Agent JSON/Bios.json" />
     <File Path="Agent JSON/Emails.json" />
     <File Path="Agent JSON/Photos.json" />
+  </Folder>
+  <Folder Name="/Solution Items/Deployment/">
+    <File Path="Deployment/foundry.sh" />
+    <File Path="Deployment/infrastructure.sh" />
+    <File Path="Deployment/utiities.sh" />
+  </Folder>
+  <Folder Name="/Solution Items/GitHub Actions/">
+    <File Path=".github/workflows/backend-build.yml" />
+    <File Path=".github/workflows/backend-deploy.yml" />
+    <File Path=".github/workflows/infrastructure.yml" />
+    <File Path=".github/workflows/sharepoint.yml" />
   </Folder>
   <Folder Name="/Solution Items/Search JSON/">
     <File Path="Search JSON/Data Source.json" />

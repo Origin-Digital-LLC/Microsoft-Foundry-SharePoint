@@ -1,5 +1,5 @@
-name: CMFUG Backend Deploy
-run-name: CMFUG Backend Deploy [${{ inputs.target-environment || github.run_id }}]
+name: Foundry SharePoint Knowledge Backend Deploy
+run-name: Foundry SharePoint Knowledge Backend Deploy [${{ inputs.target-environment || github.run_id }}]
 
 on: 
   push:
@@ -16,8 +16,8 @@ on:
         - "20260303"
       resource-group-name-prefix:
         required: true
-        default: cmfug
-        description: The prefix for all CMFUG Azure resource group names.
+        default: Foundry SharePoint Knowledge
+        description: The prefix for all Foundry SharePoint Knowledge Azure resource group names.
       web-app-name:
         type: string
         required: true
@@ -40,13 +40,13 @@ on:
         description: The full version number of the target .NET Core version.
 
 env:
-  drop_folder: CMFUG
+  drop_folder: Foundry SharePoint Knowledge
   web-app-name: ${{ inputs.web-app-name || 'api01' }}
   dotnet-version: ${{ inputs.dotnet-version || '10.x' }}
   project-folder: ${{ inputs.project-folder || 'Zava.API' }}
   solution-folder: ${{ inputs.solution-folder || 'src/backend' }}  
   target-environment: ${{ inputs.target-environment || '20260303' }}
-  resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'cmfug' }}
+  resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'Foundry SharePoint Knowledge' }}
   
 permissions:
   contents: read

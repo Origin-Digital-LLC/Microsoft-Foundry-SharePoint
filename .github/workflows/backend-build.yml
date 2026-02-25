@@ -1,5 +1,5 @@
-name: CMFUG Backend Build
-run-name: CMFUG Backend Build [${{ github.run_id }}]
+name: Foundry SharePoint Knowledge Backend Build
+run-name: Foundry SharePoint Knowledge Backend Build [${{ github.run_id }}]
 
 on:
   pull_request

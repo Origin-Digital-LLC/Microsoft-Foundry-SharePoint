@@ -1,15 +1,15 @@
-name: CMFUG SharePoint Deployment
+name: Foundry SharePoint Knowledge SharePoint Deployment
 
 on: 
   workflow_dispatch:
     inputs:    
       app-client-id:
         required: true
-        default: 56eedcfb-bf4b-4e2a-a239-e64f8dc2b699
+        default: <your entra id auth app client id>
         description: The client id of the Entra ID app to grant SharePoint access.
       site-collection-url:
         required: true
-        default: https://netorg14925960.sharepoint.com/teams/cmfug
+        default: <your site collection url>
         description: The absolute URL to the target SharePoint site collection.
       sharepoint-permissions:
         required: true

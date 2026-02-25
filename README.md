@@ -78,3 +78,13 @@ As mentioned above, I use a Power Platform solution with three Power Automate fl
 
 ## Deployment
 
+V2 adds sample GitHub actions for backend CI/CD, Azure provisioning, and granting an Entra ID app least permissive access to an M365 site collection. Here are the secrets you'll need to add to your GitHub repository:
+
+| Name | Example Value | Description |
+| --- | --- | --- |
+| AZURE_DEPLOYMENT_CREDS | See [this](https://cdn.prod.website-files.com/656df9fa4598e805a50a1d26/6987d04ea3e0829a25d54a0b_Azure%20CLI%20Credentials%20In%20GitHub.png)  | A JSON string that holds the Entra app registration credential information used to authenticate Azure CLI. |
+| PNP_CLIENT_ID | todo | The guid of the Entra app registration installed by PnP (named PnP.PowerShell by default). |
+| PNP_PFX_BASE64 | todo | The full base 64-encoded content of the PFX certificate used to authenticate the PnP.PowerShell Entra app registration. |
+| PNP_PFX_PASSWORD | todo | The password of the PFX certificate. |
+| PNP_TENANT_ID | todo | The guid of your Entra tenant. |
+
