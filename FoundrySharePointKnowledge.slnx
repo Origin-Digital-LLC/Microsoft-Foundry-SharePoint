@@ -1,0 +1,29 @@
+<Solution>
+  <Folder Name="/Solution Items/workflows/" Type="GitHub">
+    <File Path=".github/workflows/backend-build.yml" />
+    <File Path=".github/workflows/backend-deploy.yml" />
+    <File Path=".github/workflows/frontend-build.yml" />
+    <File Path=".github/workflows/frontend-deploy.yml" />
+    <File Path=".github/workflows/infrastructure.yml" />
+    <File Path=".github/workflows/sharepoint.yml" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Solution Items/Agent JSON/">
+    <File Path="Agent JSON/Bios.json" />
+    <File Path="Agent JSON/Emails.json" />
+    <File Path="Agent JSON/Photos.json" />
+  </Folder>
+  <Folder Name="/Solution Items/Search JSON/">
+    <File Path="Search JSON/Data Source.json" />
+    <File Path="Search JSON/Index.json" />
+    <File Path="Search JSON/Indexer.json" />
+    <File Path="Search JSON/Skillset.json" />
+  </Folder>
+  <Project Path="FoundrySharePointKnowledge.API/FoundrySharePointKnowledge.API.csproj" />
+  <Project Path="FoundrySharePointKnowledge.Common/FoundrySharePointKnowledge.Common.csproj" />
+  <Project Path="FoundrySharePointKnowledge.Domain/FoundrySharePointKnowledge.Domain.csproj" />
+  <Project Path="FoundrySharePointKnowledge.Infrastructure/FoundrySharePointKnowledge.Infrastructure.csproj" />
+</Solution>
