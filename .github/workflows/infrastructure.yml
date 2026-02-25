@@ -24,11 +24,11 @@ on:
       root-domain:
         required: true
         default: <your root domain>
-        description: The root domain of this Nexus instance
+        description: The root domain of the production web app.
       sub-domain:
         required: true
         default: <your sub domain>
-        description: The sub domain of this Nexus instance; the public URL will be https://[sub-domain].[root-domain]
+        description: The sub domain of the production web app; the public URL will be https://[sub-domain].[root-domain]
       primary-region:
         required: true
         default: northcentralus
@@ -87,7 +87,9 @@ on:
       #  required: true
       #  default: "1"
       #  description: The image embeddings Azure Foundry API version.
-        
+env:
+  drop_folder: Deployment
+
 permissions:
   id-token: write
   contents: read
@@ -98,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:        
-        working-directory: ./Deployment
+        working-directory: ./${{ env.drop_folder }}
     steps:  
       - name: Checkout Branch
         if: github.event_name == 'workflow_dispatch'
@@ -117,10 +119,10 @@ jobs:
           azcliversion: latest
           inlineScript: |
             #initialization
-            chmod +x $GITHUB_WORKSPACE/Deployment/infrastructure.sh;
+            chmod +x $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh;
 
             #return
-            $GITHUB_WORKSPACE/deployment/infrastructure.sh \
+            $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh \
               "${{ github.event.inputs.target-environment }}" \
               "${{ github.event.inputs.resource-group-name-prefix }}" \
               "${{ github.event.inputs.deployment-entra-enterprise-app-object-id }}" \

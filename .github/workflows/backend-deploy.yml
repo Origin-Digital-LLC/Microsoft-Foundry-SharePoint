@@ -9,11 +9,13 @@ on:
    inputs:
       target-environment:              
         type: choice
-        default: "20260303"
+        default: Dev
         required: true        
         description: Target Environment
         options:
-        - "20260303"
+        - Dev
+        - UAT
+        - Prod
       resource-group-name-prefix:
         required: true
         default: Foundry SharePoint Knowledge
@@ -26,12 +28,12 @@ on:
       solution-folder:
         required: true
         type: string    
-        default: 'src/backend'
+        default: FoundrySharePointKnowledge
         description: The solution folder name.
       project-folder:
         required: true
         type: string    
-        default: Zava.API
+        default: FoundrySharePointKnowledge.API
         description: The web app project name.
       dotnet-version:
         required: true
@@ -40,13 +42,13 @@ on:
         description: The full version number of the target .NET Core version.
 
 env:
-  drop_folder: Foundry SharePoint Knowledge
+  drop_folder: backend
   web-app-name: ${{ inputs.web-app-name || 'api01' }}
   dotnet-version: ${{ inputs.dotnet-version || '10.x' }}
-  project-folder: ${{ inputs.project-folder || 'Zava.API' }}
-  solution-folder: ${{ inputs.solution-folder || 'src/backend' }}  
-  target-environment: ${{ inputs.target-environment || '20260303' }}
-  resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'Foundry SharePoint Knowledge' }}
+  target-environment: ${{ inputs.target-environment || 'Dev' }}
+  solution-folder: ${{ inputs.solution-folder || 'FoundrySharePointKnowledge' }}  
+  project-folder: ${{ inputs.project-folder || 'FoundrySharePointKnowledge.API' }}
+  resource-group-name-prefix: ${{ inputs.resource-group-name-prefix || 'foundry-sp' }}
   
 permissions:
   contents: read

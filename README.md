@@ -6,7 +6,7 @@ This is the companion code to my [blog series](https://www.origindigital.com/ins
 | Version | Description |
 | --- | --- |
 | 1.0 | Initial release |
-| 2.0 | Major refactor: simplified authentication, added API support for frontend clients, implemented Foundry Project APIs for agent/workflow integration, and added Azure AI Search skills for image extraction & verbalization, entity recognition, and custom web APIs (for image vectorization). |
+| 2.0 | Major refactor: simplified authentication, included sample infrastructure deployment GitHub actions and scripts, added API support for frontend clients, implemented Foundry Project APIs for agent/workflow integration, and added Azure AI Search skills for image extraction & verbalization, entity recognition, and custom web APIs (for image vectorization). |
 
 ## Getting Started
 
@@ -17,7 +17,8 @@ This is the companion code to my [blog series](https://www.origindigital.com/ins
   
   ```
   {
-    "AZURE_KEY_VAULT_URL": "https://your-key-vault-name.vault.azure.net"
+    "AZURE_KEY_VAULT_URL": "https://<your-key-vault-name>.vault.azure.net",
+    "CORS_ALLOWED_ORIGINS": [ "http://localhost:<your-local-dev-react-port>", "https://localhost:<your-local-dev-blazor-port>" ]
   }
   ```
 
@@ -28,7 +29,7 @@ The Azure CLI script used to provision the Azure resource group can't be shared 
 * Foundry
 * Foundry Project
 * Azure AI Search
-* App Service Plan
+* App Service Plan (Windows)
 * App Service (Web App)
 * Azure Storage Account
 * Key Vault
@@ -38,12 +39,24 @@ The Azure CLI script used to provision the Azure resource group can't be shared 
 
 You will need an admin-consented Entra ID app registration. This is used for Microsoft Graph access and Power Automate token acquisition to secure the API's endpoints. All the details are also in the third post in the blog series linked above. I will assume you have at least some flavor of "contribute" rights to SharePoint, Power Platform, Azure, and Entra ID.
 
-To reduce exposure of API keys and connection strings, the following PaaS components have associations to one other:
+To reduce exposure of API keys and connection strings, the following PaaS components have associations to one another:
 
-* Azure AI Search: managed identity with "Storage Blob Data Reader" RBAC to the Azure Storage Account
+* Azure AI Search: managed identity with Storage Blob Data Reader, Storage Blob Data Contributor, and Storage Table Data Contributor RBAC to the Azure Storage Account
+* Azure AI Search: Cognitive Services User RBAC to Foundry
 * Web App: managed identity with a Key Vault access policy granting "get" and "list" secret permissions
+* Web App: managed identity with Storage Blob Data Reader and Storage Blob Data Contributor
 * Web App: linked to Application Insights
+* Web App: CORS for the frontend client app and Power Automate
 * Storage Account: linked to Application Insights
+* Storage Account: CORS for the frontend client app
+* Entra ID auth app: Contributor, Azure AI Developer, Azure AI User, Cognitive Services Contributor, and Cognitive Services User RBAC to Foundry
+* Entra ID auth app: a Key Vault access policy granting "get" and "list" secret permissions (not currently used)
+* Entra ID auth app: Read access to a target SharePoint site collection (via Grant-PnPAzureADAppSitePermission)
+* Entra ID deployment app: Contributor and Role Based Access Control Administrator RBAC to the Azure subscription
+* Entra ID deployment app: a Key Vault access policy with full permissions
+* Entra ID PnP.PowerShell app: add the Sites.FullControl.All Graph application permission
+
+***Now in V2, the "infrastructure.sh" script will provision an Entra ID auth app as well as the entire resource group and configure security automatically!***
 
 ### Key Vault
 
@@ -62,6 +75,8 @@ The API's Program.cs file makes several calls to Key Vault to download secrets a
 | tenant-id | 11111111-2222-3333-4444-555555555555 | Your Entra ID tenant's unique identifier. |
 | app-insights-connection-string | (Found on the Application Insights Azure Portal home page.) | The full connection string to your Application Insights PaaS resource. |
 | storage-account-connection-string | (Found on the "Access Keys" blade of the Storage Account in the Azure Portal.) | The full connection string to your Azure Storage PaaS resource. |
+
+***Now in V2, the "infrastructure.sh" script will provision all Key Vault secrets automatically!***
 
 ## Power Platform
 
@@ -83,8 +98,8 @@ V2 adds sample GitHub actions for backend CI/CD, Azure provisioning, and grantin
 | Name | Example Value | Description |
 | --- | --- | --- |
 | AZURE_DEPLOYMENT_CREDS | See [this](https://cdn.prod.website-files.com/656df9fa4598e805a50a1d26/6987d04ea3e0829a25d54a0b_Azure%20CLI%20Credentials%20In%20GitHub.png)  | A JSON string that holds the Entra app registration credential information used to authenticate Azure CLI. |
-| PNP_CLIENT_ID | todo | The guid of the Entra app registration installed by PnP (named PnP.PowerShell by default). |
-| PNP_PFX_BASE64 | todo | The full base 64-encoded content of the PFX certificate used to authenticate the PnP.PowerShell Entra app registration. |
-| PNP_PFX_PASSWORD | todo | The password of the PFX certificate. |
-| PNP_TENANT_ID | todo | The guid of your Entra tenant. |
+| PNP_CLIENT_ID | 11111111-2222-3333-4444-555555555555 | The guid of the Entra app registration installed by PnP (named PnP.PowerShell by default). |
+| PNP_PFX_BASE64 | Base 64 string | The full base 64-encoded content of the PFX certificate used to authenticate the PnP.PowerShell Entra app registration. |
+| PNP_PFX_PASSWORD | *** | The password of the PFX certificate. |
+| PNP_TENANT_ID | 11111111-2222-3333-4444-555555555555 | The guid of your Entra tenant. |
 

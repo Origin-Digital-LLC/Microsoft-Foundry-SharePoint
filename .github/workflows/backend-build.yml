@@ -5,8 +5,8 @@ on:
   pull_request
 env:
   dotnet-version: '10.x'
-  project-folder: 'Zava.API'
-  solution-folder: 'src/backend'  
+  solution-folder: 'FoundrySharePointKnowledge'  
+  project-folder: 'FoundrySharePointKnowledge.API'
   
 permissions:
   contents: read
