@@ -375,6 +375,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Search = "search";
                 public const string Status = "status";
                 public const string ProperCase = "proper-case";
+                public const string CreateAgent = "create-agent";
                 public const string SearchQuery = "search/{query?}";
                 public const string DeployVectorized = "vectorized";
                 public const string VectorizeImage = "vectorize-image";

@@ -1,0 +1,24 @@
+{
+  "query": "createOrUpdateConnectionResolver",
+  "params": {
+    "resourceId": "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/origin-nexus-lab/providers/Microsoft.CognitiveServices/accounts/test-foundry-02/projects/test-project",
+    "name": "ensemble-dev-telemetry01-6828",
+    "data": {
+      "name": "ensemble-dev-telemetry01-6828",
+      "properties": {
+        "authType": "ApiKey",
+        "category": "AppInsights",
+        "credentials": {
+          "key": "InstrumentationKey=c6223306-abcc-4a02-b9cc-01138893d79e;IngestionEndpoint=https://northcentralus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://northcentralus.livediagnostics.monitor.azure.com/;ApplicationId=b83bd50b-726c-40e7-897b-277d8dde1274"
+        },
+        "isDefault": true,
+        "isSharedToAll": false,
+        "target": "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/ensemble-dev/providers/Microsoft.Insights/components/ensemble-dev-telemetry01",
+        "metadata": {
+          "ApiType": "Azure",
+          "ResourceId": "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/ensemble-dev/providers/Microsoft.Insights/components/ensemble-dev-telemetry01"
+        }
+      }
+    }
+  }
+}

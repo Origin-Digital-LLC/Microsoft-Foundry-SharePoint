@@ -113,6 +113,25 @@ namespace FoundrySharePointKnowledge.API.Controllers
         /// <summary>
         /// Returns the Foundry project endpoint.
         /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.CreateAgent)]
+        public async Task<IActionResult> CreateAgentAsync([FromBody()] CreateAgentRequest request)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.CreateAgentAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            //create agent
+            string result = await this._foundryService.DeployAgentAsync(request, this._entraIdSettings.ToCredential());
+
+            //return
+            if (string.IsNullOrWhiteSpace(result))
+                return this.Ok();
+            else
+                return this.BadRequest(result);
+        }
+
+        /// <summary>
+        /// Returns the Foundry project endpoint.
+        /// </summary>
         [AllowAnonymous()]
         [HttpGet(FSPKConstants.Routing.API.GetFoundryProjectSettings)]
         public IActionResult GetFoundryProjectSettings()

@@ -1,0 +1,15 @@
+{
+    "type": "ApiKey",
+    "authType": "ApiKey",
+    "category": "AppInsights",    
+    "target": "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/origin-nexus-lab/providers/microsoft.insights/components/origin-nexus-lab-telemetry01",
+    "metadata": {
+        "ApiType": "Azure",
+        "ResourceId": "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/origin-nexus-lab/providers/microsoft.insights/components/origin-nexus-lab-telemetry01"
+    },
+    "isDefault": true,
+    "isSharedToAll": false,
+    "credentials": {
+        "key": "InstrumentationKey=15aec69d-72c7-478e-bf3d-c4d2f49082c0;IngestionEndpoint=https://northcentralus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://northcentralus.livediagnostics.monitor.azure.com/;ApplicationId=f9996e6c-75af-4149-88c6-ffc7a5f124cb"
+    }
+}

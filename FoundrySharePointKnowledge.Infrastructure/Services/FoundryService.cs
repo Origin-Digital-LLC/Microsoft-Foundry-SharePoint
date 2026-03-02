@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using Azure.Core;
 using Azure.AI.Projects;
 using Azure.AI.Projects.OpenAI;
+using Azure.AI.Agents.Persistent;
 
 using Microsoft.Extensions.Logging;
 
@@ -57,12 +58,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
 
             //get agent
+            AIProjectClient foundryClient = this.GetFoundryClient(tokenCredential);
             Dictionary<string, EngineerBio> engineers = new Dictionary<string, EngineerBio>();
             AgentReference agentReference = new AgentReference(FSPKConstants.Workflows.ExpertiseWorkflow);
-            AIProjectClient client = new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, tokenCredential);
 
             //create conversation
-            ProjectConversation conversation = await client.OpenAI.Conversations.CreateProjectConversationAsync();
+            ProjectConversation conversation = await foundryClient.OpenAI.Conversations.CreateProjectConversationAsync();
             using (this._logger.BeginScope(new Dictionary<string, object>
             {
                 //assemble dictionary
@@ -70,7 +71,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }))
             {
                 //excute workflow
-                ProjectResponsesClient responseClient = client.OpenAI.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
+                ProjectResponsesClient responseClient = foundryClient.OpenAI.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
                 ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt);
                 int step = 0;
 
@@ -154,7 +155,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             AgentRecord agent = null;
             StringBuilder answer = new StringBuilder();
             HashSet<string> annotations = new HashSet<string>();
-            AIProjectClient client = new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, foundryCredential);
+            AIProjectClient foundryClient = this.GetFoundryClient(foundryCredential);
 
             try
             {
@@ -163,7 +164,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 {
                     //hr
                     case Agent.HR:
-                        agent = await client.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
+                        agent = await foundryClient.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
                         break;
 
                     //invalid agent
@@ -180,7 +181,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 if (string.IsNullOrWhiteSpace(prompt.ConversationId))
                 {
                     //create conversation
-                    conversation = await client.OpenAI.Conversations.CreateProjectConversationAsync();
+                    conversation = await foundryClient.OpenAI.Conversations.CreateProjectConversationAsync();
 
                     //track conversation id
                     prompt.ConversationId = conversation.Id;
@@ -189,7 +190,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 else
                 {
                     //resume conversation
-                    conversation = await client.OpenAI.Conversations.GetProjectConversationAsync(prompt.ConversationId);
+                    conversation = await foundryClient.OpenAI.Conversations.GetProjectConversationAsync(prompt.ConversationId);
                     this._logger.LogInformation($"Resuming {agent.Name} conversation {prompt.ConversationId}.");
                 }
 
@@ -203,7 +204,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 }))
                 {
                     //send the user's message to the agent
-                    ProjectResponsesClient responseClient = client.OpenAI.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
+                    ProjectResponsesClient responseClient = foundryClient.OpenAI.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
                     ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt.UserMessage);
 
                     //get agent responses
@@ -229,7 +230,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                             //collect annotations
                             foreach (ResponseMessageAnnotation annotation in content.OutputTextAnnotations)
                             {
-                                //since the data source is sharepoint, only consider URL citataions
+                                //since the data source is sharepoint, only consider URL citations
                                 if (annotation.Kind == ResponseMessageAnnotationKind.UriCitation)
                                     annotations.Add(((UriCitationMessageAnnotation)annotation).Uri.ToString());
                                 else
@@ -249,6 +250,120 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 throw;
             }
         }
-        #endregion      
+
+        /// <summary>
+        /// Deploys an agent to foundry.
+        /// </summary>
+        public async Task<string> DeployAgentAsync(CreateAgentRequest request, TokenCredential tokenCredential)
+        {
+            //initialization
+            if (string.IsNullOrWhiteSpace(request?.Name) || string.IsNullOrWhiteSpace(request?.Model))
+            {
+                //error
+                string warning = "Agent name and model are required.";
+                this._logger.LogWarning(warning);
+                return warning;
+            }
+
+            try
+            {
+                //get clients
+                AIProjectClient foundryClient = this.GetFoundryClient(tokenCredential);
+
+                //check existing agent
+                await foreach (AgentRecord existingAgent in foundryClient.Agents.GetAgentsAsync())
+                    if (existingAgent.Name.Equals(request.Name, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        var def = (PromptAgentDefinition)existingAgent.Versions.Latest.Definition;
+
+                        string toolChoise = def.ToolChoice.ToString();
+                        foreach (var tool in def.Tools)
+                        {
+                            SharepointPreviewTool sp = (SharepointPreviewTool)tool.AsAgentTool();
+                            
+                        }
+
+
+                        throw new InvalidOperationException($"Agent {request.Name} already exists.");
+                    }
+
+                //get model
+                bool modelFound = false;
+                await foreach (AIProjectDeployment deployment in foundryClient.Deployments.GetDeploymentsAsync())
+                {
+                    //check all deployed models by name
+                    if (deployment.Name.Equals(request.Model, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        //model found
+                        modelFound = true;
+                        break;
+                    }
+                }
+
+                //check model
+                if (!modelFound)
+                    throw new InvalidOperationException($"Model {request.Model} has not been deployed.");
+
+                var connections = foundryClient.Connections.GetConnectionsAsync();
+                await foreach (var connection in connections)
+                {
+                    if (connection.Type == ConnectionType.Custom)
+                    {
+                    }
+                }
+
+
+                SharepointGroundingToolParameters sharepointGroundingToolParameters = new SharepointGroundingToolParameters("connectionId");
+                SharepointToolDefinition sharepointToolDefinition = new SharepointToolDefinition(sharepointGroundingToolParameters);
+
+                PromptAgentDefinition agentDefinition = new PromptAgentDefinition(request.Model);
+                agentDefinition.Instructions = request.Instructions;
+
+
+                SharepointPreviewTool sharePointTool = new SharepointPreviewTool(new SharePointGroundingToolOptions()
+                {
+                    
+                });
+
+                var agent = await foundryClient.Agents.CreateAgentVersionAsync(request.Name, new AgentVersionCreationOptions(agentDefinition)
+                {
+                    Description = request.Description
+                });
+{
+
+                };
+                return string.Empty;
+
+                //ClientResult<AgentVersion> agent = await client.Agents.CreateAgentVersionAsync(request.Name, options);
+                //PipelineResponse response = agent.GetRawResponse();
+
+                //if (response.IsError)
+                //{
+                //    throw new Exception($"Agent provisioning returned a {response.Status}: {response.Content}");
+                //}
+                //else
+                //{
+                //    return string.Empty;
+                //}
+            }
+            catch (Exception ex)
+            {
+                //error
+                string error = $"Failed to create agent {request.Name}.";
+                this._logger.LogError(ex, error);
+                return error;
+            }
+        }
+        #endregion
+        #region Private Methods
+        /// <summary>
+        /// Builds a foundry client with the given credential.
+        /// </summary>
+        private AIProjectClient GetFoundryClient(TokenCredential tokenCredential)
+        {
+            //return
+            return new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, tokenCredential);
+        }
+        #endregion
     }
 }
