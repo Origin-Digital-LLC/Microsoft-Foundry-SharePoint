@@ -6,10 +6,15 @@ using System.ClientModel;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
+using Azure;
 using Azure.Core;
+using Azure.Identity;
 using Azure.AI.Projects;
+using Azure.ResourceManager;
 using Azure.AI.Projects.OpenAI;
 using Azure.AI.Agents.Persistent;
+using Azure.ResourceManager.CognitiveServices;
+using Azure.ResourceManager.CognitiveServices.Models;
 
 using Microsoft.Extensions.Logging;
 
@@ -267,84 +272,230 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
             try
             {
+
+                // authenticate your client
+                ArmClient client = new ArmClient(new DefaultAzureCredential());
+                AIProjectClient foundryClient = new AIProjectClient(new Uri("https://test-foundry-02.services.ai.azure.com/api/projects/test-project"), new DefaultAzureCredential());
+                //AIProjectClient foundryClient = new AIProjectClient(new Uri("https://cmfug-20260303-foundry01.services.ai.azure.com/api/projects/cmfug-agent-pool"), new DefaultAzureCredential());
+
+                string subscriptionId = "af61721f-e1df-4570-9d4d-b0cf4aa66317";
+                string resourceGroupName = "origin-nexus-lab";
+                string accountName = "test-foundry-02";
+                string projectName = "test-project";
+                string searchConnectionName = "Search";
+                string searchIndexName = "sharepoint-foundry";
+                string appInsightsConnectionName = "Telemetry";
+                string sharePointConnectionName = "SharePoint";
+
+                CognitiveServicesProjectResource project = client.GetCognitiveServicesProjectResource(CognitiveServicesProjectResource.CreateResourceIdentifier(subscriptionId, resourceGroupName, accountName, projectName));
+                CognitiveServicesProjectConnectionCollection connections = project.GetCognitiveServicesProjectConnections();
+
+                //--app insights--
+                //CognitiveServicesConnectionData appInsightsConnection = new CognitiveServicesConnectionData(new ApiKeyAuthConnectionProperties
+                //{
+                //    IsSharedToAll = true,
+                //    Category = "AppInsights",
+                //    Target = "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/ensemble-dev/providers/Microsoft.Insights/components/ensemble-dev-telemetry01",
+                //    CredentialsKey = "InstrumentationKey=c6223306-abcc-4a02-b9cc-01138893d79e;IngestionEndpoint=https://northcentralus-0.in.applicationinsights.azure.com/;LiveEndpoint=https://northcentralus.livediagnostics.monitor.azure.com/;ApplicationId=b83bd50b-726c-40e7-897b-277d8dde1274"
+                //});
+
+                //ArmOperation<CognitiveServicesProjectConnectionResource> result = await connections.CreateOrUpdateAsync(WaitUntil.Completed, appInsightsConnectionName, appInsightsConnection);
+
+                //--sp--
+                //CustomKeysConnectionProperties sharePointConnectionProperties = new CustomKeysConnectionProperties
+                //{
+                //    Target = "-",
+                //    IsSharedToAll = true,
+                //    Category = CognitiveServicesConnectionCategory.CustomKeys
+                //};
+
+                //sharePointConnectionProperties.Metadata.Add("type", "sharepoint_grounding_preview");
+                //sharePointConnectionProperties.CredentialsKeys.Add("site_url", "https://netorg14925960.sharepoint.com/teams/cmfug/hr");
+
+                //CognitiveServicesConnectionData sharePointConnection = new CognitiveServicesConnectionData(sharePointConnectionProperties);
+                //ArmOperation<CognitiveServicesProjectConnectionResource> result = await connections.CreateOrUpdateAsync(WaitUntil.Completed, sharePointConnectionName, sharePointConnection);
+
+                //--search--
+                ApiKeyAuthConnectionProperties searchConnectionProperties = new ApiKeyAuthConnectionProperties
+                {
+                    IsSharedToAll = true,
+                    Category = CognitiveServicesConnectionCategory.CognitiveSearch,
+                    Target = "https://cmfug-20260303-search01.search.windows.net/",
+                    CredentialsKey = "wAyMm9vQzOUrOi7050aM1Vz5lVnCv2YT3afjgHKR7uAzSeBjt0tY"
+                };
+
+                searchConnectionProperties.Metadata.Add("ApiType", "Azure");
+                searchConnectionProperties.Metadata.Add("type", "azure_ai_search");
+                searchConnectionProperties.Metadata.Add("displayName", "cmfug-20260303-search01");
+                searchConnectionProperties.Metadata.Add("ResourceId", "/subscriptions/af61721f-e1df-4570-9d4d-b0cf4aa66317/resourceGroups/cmfug-20260303/providers/Microsoft.Search/searchServices/cmfug-20260303-search01");
+
+                CognitiveServicesConnectionData searchConnection = new CognitiveServicesConnectionData(searchConnectionProperties);
+                ArmOperation<CognitiveServicesProjectConnectionResource> result = await connections.CreateOrUpdateAsync(WaitUntil.Completed, searchConnectionName, searchConnection);
+
+                if (result.HasValue)
+                {
+                  
+                }
+
+
                 //get clients
-                AIProjectClient foundryClient = this.GetFoundryClient(tokenCredential);
+                //AIProjectClient foundryClient = this.GetFoundryClient(tokenCredential);
 
-                //check existing agent
-                await foreach (AgentRecord existingAgent in foundryClient.Agents.GetAgentsAsync())
-                    if (existingAgent.Name.Equals(request.Name, StringComparison.InvariantCultureIgnoreCase))
+                AIProjectConnection aiSearchConnection = await foundryClient.Connections.GetConnectionAsync(searchConnectionName);
+
+                AzureAISearchToolIndex index = new AzureAISearchToolIndex()
+                {
+                    TopK = 50,
+                    IndexName = searchIndexName,
+                    ProjectConnectionId = aiSearchConnection.Id,
+                    QueryType = Azure.AI.Projects.OpenAI.AzureAISearchQueryType.VectorSemanticHybrid
+                };
+
+
+                //var indexResult = await foundryClient.Indexes.CreateOrUpdateAsync(searchIndexName, "1", new AzureAISearchIndex(searchConnectionName, searchIndexName));
+
+
+                // Create the agent definition with the Azure AI Search tool.
+                PromptAgentDefinition agentDefinition = new PromptAgentDefinition("gpt-4.1-mini")
+                {
+                    Instructions = "You are an HR expert who can summarize engineer bios. All records in the search index pertaining to the same person have the same \"FullName\" values and vectors, as well as matching \"Email\" field values that uniquely identify an engineer.\r\n\r\nPlease provide a summary of each engineer including FullName, Email, TechnicalSkills, SolutionSkills, and Experience. \r\n\r\nEnsure FullName is also proper cased.",
+                    Tools = { new AzureAISearchTool(new AzureAISearchToolOptions(indexes: [index])) },
+                    ToolChoice = BinaryData.FromString("\"required\""),
+                    TextOptions = new ResponseTextOptions()
                     {
-                        var def = (PromptAgentDefinition)existingAgent.Versions.Latest.Definition;
-
-                        string toolChoise = def.ToolChoice.ToString();
-                        foreach (var tool in def.Tools)
+                        TextFormat = ResponseTextFormat.CreateJsonSchemaFormat("Bio", BinaryData.FromString(@"
                         {
-                            SharepointPreviewTool sp = (SharepointPreviewTool)tool.AsAgentTool();
-                            
-                        }
-
-
-                        throw new InvalidOperationException($"Agent {request.Name} already exists.");
+                            ""type"": ""object"",
+                            ""additionalProperties"": false,
+                            ""required"": [
+                                ""Engineers""
+                            ],
+                            ""properties"": {
+                                ""Engineers"": {
+                                    ""type"": ""array"",
+                                    ""additionalProperties"": false,
+                                    ""description"": ""These are the engineers return from a query."",
+                                    ""items"": {
+                                        ""type"": ""object"",
+                                        ""additionalProperties"": false,
+                                        ""required"": [
+                                            ""FullName"",
+                                            ""Email"",
+                                            ""TechnicalSkills"",
+                                            ""SolutionSkills"",
+                                            ""Experience""
+                                        ],
+                                        ""properties"": {
+                                            ""FullName"": {
+                                                ""type"": ""string"",
+                                                ""description"": ""The engineer's full name.""
+                                            },
+                                            ""Email"": {
+                                                ""type"": ""string"",
+                                                ""description"": ""The engineer's email address.""
+                                            },
+                                            ""TechnicalSkills"": {
+                                                ""type"": ""array"",
+                                                ""items"": {
+                                                ""type"": ""string""
+                                                },
+                                                ""description"": ""A list of the engineer's technical skills.""
+                                            },
+                                            ""SolutionSkills"": {
+                                                ""type"": ""array"",
+                                                ""items"": {
+                                                ""type"": ""string""
+                                                },
+                                                ""description"": ""A list of the engineer's solution skills.""
+                                            },
+                                            ""Experience"": {
+                                                ""type"": ""string"",
+                                                ""description"": ""A description of the engineer's experience.""
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }"), "This is the structured output for an engineer's bio.", true)
                     }
+                };
 
-                //get model
-                bool modelFound = false;
-                await foreach (AIProjectDeployment deployment in foundryClient.Deployments.GetDeploymentsAsync())
-                {
-                    //check all deployed models by name
-                    if (deployment.Name.Equals(request.Model, StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        //model found
-                        modelFound = true;
-                        break;
-                    }
-                }
-
-                //check model
-                if (!modelFound)
-                    throw new InvalidOperationException($"Model {request.Model} has not been deployed.");
-
-                var connections = foundryClient.Connections.GetConnectionsAsync();
-                await foreach (var connection in connections)
-                {
-                    if (connection.Type == ConnectionType.Custom)
-                    {
-                    }
-                }
-
-
-                SharepointGroundingToolParameters sharepointGroundingToolParameters = new SharepointGroundingToolParameters("connectionId");
-                SharepointToolDefinition sharepointToolDefinition = new SharepointToolDefinition(sharepointGroundingToolParameters);
-
-                PromptAgentDefinition agentDefinition = new PromptAgentDefinition(request.Model);
-                agentDefinition.Instructions = request.Instructions;
-
-
-                SharepointPreviewTool sharePointTool = new SharepointPreviewTool(new SharePointGroundingToolOptions()
-                {
-                    
-                });
-
-                var agent = await foundryClient.Agents.CreateAgentVersionAsync(request.Name, new AgentVersionCreationOptions(agentDefinition)
+                var agent = await foundryClient.Agents.CreateAgentVersionAsync("search3", new AgentVersionCreationOptions(agentDefinition)
                 {
                     Description = request.Description
                 });
-{
 
-                };
+
                 return string.Empty;
 
-                //ClientResult<AgentVersion> agent = await client.Agents.CreateAgentVersionAsync(request.Name, options);
-                //PipelineResponse response = agent.GetRawResponse();
 
-                //if (response.IsError)
+                ////check existing agent
+                //await foreach (AgentRecord existingAgent in foundryClient.Agents.GetAgentsAsync())
                 //{
-                //    throw new Exception($"Agent provisioning returned a {response.Status}: {response.Content}");
+                //    if (existingAgent.Name.Equals(request.Name, StringComparison.InvariantCultureIgnoreCase))
+                //    {
+                //        var def = (PromptAgentDefinition)existingAgent.Versions.Latest.Definition;
+
+                //        string toolChoise = def.ToolChoice.ToString();
+                //        foreach (var tool in def.Tools)
+                //        {
+                //            SharepointPreviewTool sp = (SharepointPreviewTool)tool.AsAgentTool();
+
+                //        }
+
+
+                //        throw new InvalidOperationException($"Agent {request.Name} already exists.");
+                //    }
                 //}
-                //else
+
+                ////get model
+                //bool modelFound = false;
+                //await foreach (AIProjectDeployment deployment in foundryClient.Deployments.GetDeploymentsAsync())
                 //{
-                //    return string.Empty;
+                //    //check all deployed models by name
+                //    if (deployment.Name.Equals(request.Model, StringComparison.InvariantCultureIgnoreCase))
+                //    {
+                //        //model found
+                //        modelFound = true;
+                //        break;
+                //    }
                 //}
+
+                ////check model
+                //if (!modelFound)
+                //    throw new InvalidOperationException($"Model {request.Model} has not been deployed.");
+
+
+                //var connections = foundryClient.Connections.GetConnectionsAsync();
+                //await foreach (var connection in connections)
+                //{
+                //    if (connection.Type == ConnectionType.Custom)
+                //    {
+                //    }
+                //}
+
+
+                //SharepointGroundingToolParameters sharepointGroundingToolParameters = new SharepointGroundingToolParameters("connectionId");
+                //SharepointToolDefinition sharepointToolDefinition = new SharepointToolDefinition(sharepointGroundingToolParameters);
+
+                //PromptAgentDefinition agentDefinition = new PromptAgentDefinition(request.Model);
+                //agentDefinition.Instructions = request.Instructions;
+
+
+                //SharepointPreviewTool sharePointTool = new SharepointPreviewTool(new SharePointGroundingToolOptions()
+                //{
+
+                //});
+
+                //var agent = await foundryClient.Agents.CreateAgentVersionAsync(request.Name, new AgentVersionCreationOptions(agentDefinition)
+                //{
+                //    Description = request.Description
+                //});
+
+
+                //return string.Empty;
+
+
             }
             catch (Exception ex)
             {
