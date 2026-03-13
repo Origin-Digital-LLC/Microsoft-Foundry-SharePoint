@@ -45,7 +45,7 @@ on:
         required: false
         default: <your front end dev URL>
         description: The team local development environment URL for which CORS rules will be enabled in lower environments.
-      ai-SKU:
+      foundry-sku:
         default: S0
         required: true
         description: The SKU of the Microsoft Foundry resource.
@@ -132,7 +132,7 @@ jobs:
               "${{ github.event.inputs.secondary-region }}" \
               "${{ github.event.inputs.owner-email }}" \
               "${{ github.event.inputs.localhost-url }}" \
-              "${{ secrets.AZURE_DEPLOYMENT_AUTH_JWT_SECRET }}";              
+              "${{ github.event.inputs.foundry-sku }}";              
 
               #TODO: add these back in if GitHub ever allows more than 10 inputs...             
               #"${{ github.event.inputs.llm-model }}" \
