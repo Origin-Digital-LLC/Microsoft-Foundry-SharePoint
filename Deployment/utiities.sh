@@ -444,12 +444,88 @@ function ensure_foundry()
   	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$inferenceEndpoint|$resourceId";
 }
 
+#Creates microsoft foundry portal and project instances by name if thet doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|resourceId|inferenceEndpoint]
+function ensure_foundry_project()
+{
+	#initialization
+   	local sku=$5;
+	local name=$3;  	
+ 	local region=$2;
+	local projectName=$4;
+  	local principalId=$6;
+ 	local resourceGroupName=$1; 
+	local projectURL="/projects/$projectName";
+	local aiUserRoleId="53ca6127-db72-4b80-b1b0-d745d6d5456d";
+   	local aiDeveloperRoleId="64702f94-c441-49e6-a78b-ef80e0188fee";
+   	local contributorRoleId="b24988ac-6180-42a0-ab88-20f7382dd24c";
+   	local cognitiveServicesUserRoleId="a97b65f3-24c7-4388-baec-2e87135dc908";
+	local cognitiveServicesContributorRoleId="25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68";
+
+  	#check existing foundry portal
+   	echo "Ensuring foundry portal $name." >&2;
+	local foundry=$(az cognitiveservices account list --resource-group $resourceGroupName --query "[?name == '$name']" --output "tsv");
+	if [ -z "$foundry" ]; then
+		#create foundry portal
+		echo "Creating foundry portal $name." >&2;
+  		local foundryId=$(az cognitiveservices account create --resource-group $resourceGroupName --name $name --location $region --custom-domain $name --kind "AIServices" --sku $sku --query "id" --output "tsv" --assign-identity --yes);
+		echo "Foundry portal $name created successfully." >&2;		 
+	else
+		#foundry portal already exists
+		echo "Foundry $name already exists." >&2;
+	fi
+
+	#check existing foundry project
+   	echo "Ensuring foundry project $projectName." >&2;
+	local project=$(az cognitiveservices account project list --resource-group $resourceGroupName --name $name --query "[?name == '$name/$projectName']" --output "tsv");
+	if [ -z "$project" ]; then
+	 	#create foundry project
+	   	echo "Creating foundry project $projectName." >&2;
+		local projectId=$(az cognitiveservices account project create --resource-group $resourceGroupName --name $name --project-name $projectName --display-name $projectName --location $region --description "This is the $projectName agent pool." --query "id" --output "tsv" --assign-identity);
+	 	echo "Foundry project $projectName created successfully." >&2;
+	else
+		#foundry project already exists
+		echo "Foundry project $projectName already exists." >&2;
+	fi
+
+ 	#assign foundry permissions to the given principal (if provided)
+  	if [ -z "$principalId" ]; then
+   		#no principal provided
+		echo "No principal id was provided to receive foundry roles." >&2;
+   	else
+		#get foundry's scope (id)
+		echo "Granting principal $principalId foundry roles." >&2;
+		local scope=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
+
+		#add the principal to the roles
+		$(ensure_rbac_access "$principalId" "$scope" "$aiUserRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$aiDeveloperRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$contributorRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesUserRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesContributorRoleId");
+		echo "Granted principal $principalId foundry roles successfully." >&2;
+	fi
+  	
+ 	#get foundry metadata
+	local projectAPI="api$projectURL";
+	local resourceId=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
+  	local accountKey=$(az cognitiveservices account keys list --resource-group $resourceGroupName --name $name --query "key1" --output "tsv");
+	local projectEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."AI Foundry API"' --output "tsv");
+	local documentIntelligenceEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "properties.endpoints.FormRecognizer" --output "tsv");
+	local openAIEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."OpenAI Language Model Instance API"' --output "tsv");
+	local inferenceEndpoint="$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."Azure AI Model Inference API"' --output "tsv")models";
+
+	#return
+	projectEndpoint="$projectEndpoint$projectAPI";
+  	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$resourceId|$inferenceEndpoint";
+}
+
 #Deploys a microsoft foundry model by name if it doesn't already exist. [Returns: nothing]
 function ensure_foundry_model_deployment()
 {
 	#initialization
  	local name=$2;
 	local model=$3;	
+	local format=$6;
    	local version=$4;
    	local capacity=$5;
  	local resourceGroupName=$1;
@@ -460,7 +536,7 @@ function ensure_foundry_model_deployment()
 	if [ -z "$deployment" ]; then
 		#deploy model
 		echo "Deploying $model to Foundry $name." >&2;
-		deployment=$(az cognitiveservices account deployment create --resource-group $resourceGroupName --name $name --deployment-name $model --model-name $model --model-version $version --sku-capacity $capacity --model-format "OpenAI" --sku-name "GlobalStandard");
+		deployment=$(az cognitiveservices account deployment create --resource-group $resourceGroupName --name $name --deployment-name $model --model-name $model --model-version $version --sku-capacity $capacity --model-format $format --sku-name "GlobalStandard");
 	
 		#done
 		echo "Model $model deployed to Foundry $name successfully." >&2;
