@@ -28,10 +28,13 @@ imageVersion="1";
 llmCapacity="501";
 imageCapacity="5";
 llmModel="gpt-4.1";
+llmFormat="OpenAI";
+imageFormat="Cohere";
 embeddingVersion="2";
 llmVersion="2025-04-14";
 embeddingCapacity="511";
 imageModel="embed-v-4-0";
+embeddingFormat="OpenAI";
 dotNetCoreRuntime="dotnet:10";
 foundryAPIVersion="2024-05-01-preview";
 embeddingModel="text-embedding-3-small";
@@ -199,9 +202,9 @@ foundryInferenceEndpoint=${foundryComponents[5]};
 foundryDocumentIntelligenceEndpoint=${foundryComponents[2]};
 
 #ensure foundry model deployments
-llmModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$llmModel" "$llmVersion" "$llmCapacity");
-imageModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$imageModel" "$imageVersion" "$imageCapacity");
-embeddingModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$embeddingModel" "$embeddingVersion" "$embeddingCapacity");
+llmModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$llmModel" "$llmVersion" "$llmCapacity" "$llmFormat");
+imageModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$imageModel" "$imageVersion" "$imageCapacity" "$imageFormat");
+embeddingModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$embeddingModel" "$embeddingVersion" "$embeddingCapacity" "$embeddingFormat");
 
 #ensure search
 searchName="$resourceGroupName-search01";
