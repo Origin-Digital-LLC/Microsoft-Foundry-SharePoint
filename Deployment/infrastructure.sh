@@ -190,7 +190,7 @@ selectedSitesPermission=$(assign_app_permission "$authClientId" "$graphAPIPermis
 
 #ensure foundry
 foundryName="$resourceGroupName-foundry01";
-foundryResult=$(ensure_foundry "$resourceGroupName" "$secondaryRegion" "$foundryName" "$foundryProjectName" "$foundrySKU" "$authEnterpriseAppObjectId");
+foundryResult=$(ensure_foundry_project "$resourceGroupName" "$secondaryRegion" "$foundryName" "$foundryProjectName" "$foundrySKU" "$authEnterpriseAppObjectId");
 
 #parse foundry components
 foundryComponents=(${foundryResult//|/ });
