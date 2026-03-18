@@ -88,23 +88,55 @@ namespace FoundrySharePointKnowledge.API
             builder.Services.AddSwaggerGen(options =>
             {
                 //configure open api
-                OpenApiSecurityScheme jwtSecurityScheme = new OpenApiSecurityScheme
-                {
-                    //assemble object
-                    In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.Http,
-                    BearerFormat = FSPKConstants.Security.JWT,
-                    Name = FSPKConstants.Security.Authorization,
-                    Scheme = JwtBearerDefaults.AuthenticationScheme,
-                    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL]),
-                };
+                //OpenApiSecurityScheme jwtSecurityScheme = new OpenApiSecurityScheme
+                //{
+                //    //assemble object
+                //    In = ParameterLocation.Header,
+                //    Type = SecuritySchemeType.Http,
+                //    BearerFormat = FSPKConstants.Security.JWT,
+                //    Name = FSPKConstants.Security.Authorization,
+                //    Scheme = JwtBearerDefaults.AuthenticationScheme,
+                //    Description = string.Format(FSPKConstants.Security.TokenLinkFormat, builder.Configuration[FSPKConstants.Settings.TokenFlowURL]),
+                //};
+
+                ////add security
+                //options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, jwtSecurityScheme);
+                //options.AddSecurityRequirement(document => new OpenApiSecurityRequirement()
+                //{
+                //    //default jwt bearer with no scopes
+                //    [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
+                //});
 
                 //add security
-                options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, jwtSecurityScheme);
+                string type = SecuritySchemeType.OAuth2.ToString().ToLowerInvariant();
+                string scope = entraIDSettings.Scope.CombineURL(FSPKConstants.Security.TokenValidation.Scope);
+
+                //configure open api
+                OpenApiSecurityScheme oAuthScheme = new OpenApiSecurityScheme
+                {
+                    //configure oauth
+                    Type = SecuritySchemeType.OAuth2,
+                    Flows = new OpenApiOAuthFlows
+                    {
+                        //configure auth flow
+                        AuthorizationCode = new OpenApiOAuthFlow
+                        {
+                            //assemble object
+                            AuthorizationUrl = new Uri(FSPKConstants.Security.TokenValidation.Instance.CombineURL(entraIDSettings.TenantId.ToString()).CombineURL(FSPKConstants.Security.TokenValidation.Endpoints.Authorize)),
+                            TokenUrl = new Uri(FSPKConstants.Security.TokenValidation.Instance.CombineURL(entraIDSettings.TenantId.ToString()).CombineURL(FSPKConstants.Security.TokenValidation.Endpoints.Token)),
+                            Scopes = new Dictionary<string, string>
+                            {
+                                //assemble dictionary
+                                { scope, "API Access" }
+                            }
+                        }
+                    }
+                };
+
+                options.AddSecurityDefinition(type, oAuthScheme);
                 options.AddSecurityRequirement(document => new OpenApiSecurityRequirement()
                 {
-                    //default jwt bearer with no scopes
-                    [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
+                    [new OpenApiSecuritySchemeReference(type, document)] = [scope]
                 });
             });
 
@@ -152,6 +184,8 @@ namespace FoundrySharePointKnowledge.API
             {
                 //configure ui
                 options.DocumentTitle = "Foundry SharePoint Knowledge API";
+                options.OAuthClientId(entraIDSettings.ClientId.ToString());
+                options.OAuthUsePkce();
             });
 
             //configure CORS

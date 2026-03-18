@@ -21,9 +21,16 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Version = "ver";
                 public const string Audience = "aud";
                 public const string APIAudience = "api://";
+                public const string Scope = "access_as_user";
                 public const string Issuer = "https://sts.windows.net/";
                 public const string Instance = "https://login.microsoftonline.com/";
-                public const string ConfigurationEndpoint = "/.well-known/openid-configuration";
+
+                public static class Endpoints
+                {
+                    public const string Token = "/oauth2/v2.0/token";
+                    public const string Authorize = "/oauth2/v2.0/authorize";
+                    public const string Configuration = "/.well-known/openid-configuration";
+                }
             }
 
             public static class RSA
@@ -49,7 +56,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
                 public const string TokenEndpointFormat = "https://login.microsoftonline.com/{0}/oauth2/v2.0/token";
             }
-        }
+        }       
 
         public static class JsonPropertyNames
         {
@@ -129,6 +136,7 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class Search
         {
+            public const string EndpointSuffix = ".search.windows.net/";
             public static class Queries
             {
                 public const string Space = "%20";
@@ -322,6 +330,18 @@ namespace FoundrySharePointKnowledge.Common
             public const string EncodingFormat = "float";
             public const string ModelId = "prebuilt-layout";
             public const string Scope = "https://ai.azure.com/user_impersonation";
+
+            public static class Tools
+            {
+                public const string Type = "type";
+                public const string APIType = "ApiType";
+                public const string SiteURL = "site_url";
+                public const string SharePointTarget = "-";
+                public const string DisplayName = "displayName";
+                public const string SearchType = "azure_ai_search";
+                public const string AppInsights = nameof(AppInsights);
+                public const string SharePointGrounding = "sharepoint_grounding_preview";
+            }
         }
 
         public static class Graph

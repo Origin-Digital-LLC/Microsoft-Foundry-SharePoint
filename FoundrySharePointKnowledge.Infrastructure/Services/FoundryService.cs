@@ -11,8 +11,8 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.AI.Projects;
 using Azure.ResourceManager;
-using Azure.AI.Projects.OpenAI;
-using Azure.AI.Agents.Persistent;
+using Azure.AI.Projects.Agents;
+using Azure.AI.Extensions.OpenAI;
 using Azure.ResourceManager.CognitiveServices;
 using Azure.ResourceManager.CognitiveServices.Models;
 
@@ -157,7 +157,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
 
             //create a foundry client as the current user
-            AgentRecord agent = null;
+            AgentReference agent = null;
+            string agentId = string.Empty;
             StringBuilder answer = new StringBuilder();
             HashSet<string> annotations = new HashSet<string>();
             AIProjectClient foundryClient = this.GetFoundryClient(foundryCredential);
@@ -169,7 +170,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 {
                     //hr
                     case Agent.HR:
-                        agent = await foundryClient.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
+                        //get agent
+                        AgentRecord agentRecord = await foundryClient.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
+                        if (agentRecord == null)
+                            throw new Exception($"Agent {FSPKConstants.Agents.HR} was not found.");
+
+                        //get agent reference
+                        agent = new AgentReference(agentRecord.Name);
+                        agentId = agentRecord.Id;
                         break;
 
                     //invalid agent
@@ -203,7 +211,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 using (this._logger.BeginScope(new Dictionary<string, object>
                 {
                     //assemble dictionary
-                    { "Agent Id", agent.Id },
+                    { "Agent Id", agentId },
                     { "Agent Name", agent.Name },
                     { "Conversation", conversation.Id }
                 }))
@@ -253,6 +261,34 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //error
                 this._logger.LogError(ex, "Unknown agent error.");
                 throw;
+            }
+        }
+
+        public async Task<string> MigrateAgentsAsync(string sourceFoundryProjectURL, string destinationFoundryProjectURL, IToolDefintiion[] destinationTools)
+        {
+            //initialization
+            if (!Uri.TryCreate(sourceFoundryProjectURL, UriKind.Absolute, out Uri sourceFroundryProjectURI))
+                throw new InvalidOperationException(nameof(sourceFoundryProjectURL));
+            if (!Uri.TryCreate(destinationFoundryProjectURL, UriKind.Absolute, out Uri destinationFoundryProjectURI))
+                throw new InvalidOperationException(nameof(destinationFoundryProjectURL));
+
+            try
+            {
+                DefaultAzureCredential credential = new DefaultAzureCredential();
+
+                //create clients
+                ArmClient armClient = new ArmClient(credential);
+                AIProjectClient sourceClient = new AIProjectClient(sourceFroundryProjectURI, credential);
+                AIProjectClient destinationClient = new AIProjectClient(destinationFoundryProjectURI, credential);
+
+                //return
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to migration agents from {sourceFoundryProjectURL} to {destinationFoundryProjectURL}");
+                return ex.Message;
             }
         }
 
@@ -348,7 +384,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     TopK = 50,
                     IndexName = searchIndexName,
                     ProjectConnectionId = aiSearchConnection.Id,
-                    QueryType = Azure.AI.Projects.OpenAI.AzureAISearchQueryType.VectorSemanticHybrid
+                    QueryType = AzureAISearchQueryType.VectorSemanticHybrid
                 };
 
 

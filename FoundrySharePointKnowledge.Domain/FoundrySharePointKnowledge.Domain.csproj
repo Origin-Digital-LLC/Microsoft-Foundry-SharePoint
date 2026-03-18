@@ -6,9 +6,10 @@
     </PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="Azure.Core" Version="1.51.1" />
-		<PackageReference Include="Azure.Identity" Version="1.18.0" />
+		<PackageReference Include="Azure.Identity" Version="1.19.0" />
 		<PackageReference Include="Azure.Data.Tables" Version="12.11.0" />
 		<PackageReference Include="Azure.Search.Documents" Version="11.8.0-beta.1" />
+		<PackageReference Include="Azure.ResourceManager.CognitiveServices" Version="1.5.2" />
 	</ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\FoundrySharePointKnowledge.Common\FoundrySharePointKnowledge.Common.csproj" />

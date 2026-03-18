@@ -159,7 +159,7 @@ namespace FoundrySharePointKnowledge.API.Utilities
         private static async Task<SecurityKey[]> GetIssuerSigningKeysAsync(string tenantId)
         {
             //initialization
-            string metadataAddress = FSPKConstants.Security.TokenValidation.Instance.CombineURL(tenantId).CombineURL(FSPKConstants.Security.TokenValidation.ConfigurationEndpoint);
+            string metadataAddress = FSPKConstants.Security.TokenValidation.Instance.CombineURL(tenantId).CombineURL(FSPKConstants.Security.TokenValidation.Endpoints.Configuration);
             ConfigurationManager<OpenIdConnectConfiguration> openidConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(metadataAddress, new OpenIdConnectConfigurationRetriever(), new HttpDocumentRetriever());
 
             //return
