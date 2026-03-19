@@ -132,7 +132,8 @@ jobs:
               "${{ github.event.inputs.secondary-region }}" \
               "${{ github.event.inputs.owner-email }}" \
               "${{ github.event.inputs.localhost-url }}" \
-              "${{ github.event.inputs.foundry-sku }}";              
+              "${{ github.event.inputs.foundry-sku }}" \
+              "${{ secrets.SHAREPOINT_WEBHOOK_SECRET }}"; 
 
               #TODO: add these back in if GitHub ever allows more than 10 inputs...             
               #"${{ github.event.inputs.llm-model }}" \
