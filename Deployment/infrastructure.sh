@@ -11,6 +11,7 @@ authRedirectURLs="";
 secondaryRegion="$7";
 resourceGroupName="$2";
 environmentNormalized="${1,,}";
+sharepointWebhookSecret="${11}";
 deploymentEnterpriseAppObjectId="$3";
 
 #these values should also be inputs, but github only allows 10 parameters :(
@@ -243,6 +244,7 @@ tenantIdResult=$(ensure_key_vault_secret "$keyVaultName" "auth-tenant-id" "$tena
 authClientIdResult=$(ensure_key_vault_secret "$keyVaultName" "auth-client-id" "$authClientId");
 apiPrincipalIdResult=$(ensure_key_vault_secret "$keyVaultName" "api-principal-id" "$apiPrincipalId");
 authClientSecretResult=$(ensure_key_vault_secret "$keyVaultName" "auth-client-secret" "$authClientSecret");
+sharepointWebhookSecretResult=$(ensure_key_vault_secret "$keyVaultName" "sharepoint-webhook-secret" "$sharepointWebhookSecret");
 
 #ensure storage account secrets
 storageAccountKeyResult=$(ensure_key_vault_secret "$keyVaultName" "storage-account-key" "$storageAccountKey");
