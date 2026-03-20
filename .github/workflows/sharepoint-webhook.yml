@@ -1,4 +1,4 @@
-name: CMFUG SharePoint Webhook Deployment
+name: Foundry SharePoint Knowledge SharePoint Webhook Deployment
 
 on: 
   workflow_dispatch:
