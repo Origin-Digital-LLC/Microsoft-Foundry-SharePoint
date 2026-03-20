@@ -1,0 +1,43 @@
+name: CMFUG SharePoint Webhook Deployment
+
+on: 
+  workflow_dispatch:
+    inputs:    
+      site-collection-url:
+        required: true
+        default: <your site collection url>
+        description: The absolute URL to the target SharePoint site collection.
+      list-name:
+        required: true
+        default: <your list display name>
+        description: A string containing the display name of the SharePoint list to subscribe.
+      api-url:
+        required: true
+        default: <your api endpoint>
+        description: The absolute URL to the API endpoint that listens for SharePoint webhook subscriptions.
+    
+jobs:
+  run-pnp:
+    name: Run PnP
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PnP PowerShell
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted;            
+          Install-Module PnP.PowerShell -Scope CurrentUser -Force -AllowClobber;
+
+      - name: Subscribe To Webhook
+        shell: pwsh
+        run: |
+          #initialization
+          $password = ConvertTo-SecureString -String "${{ secrets.PNP_PFX_PASSWORD }}" -AsPlainText -Force;
+          Write-Host "Subscribing to webhooks for list ${{ github.event.inputs.list-name }} on site ${{ github.event.inputs.site-collection-url }}.";
+          Connect-PnPOnline -Url "${{ github.event.inputs.site-collection-url }}" -ClientId "${{ secrets.PNP_CLIENT_ID }}" -Tenant "${{ secrets.PNP_TENANT_ID }}" -CertificateBase64Encoded "${{ secrets.PNP_PFX_BASE64 }}" -CertificatePassword $password;
+
+          #return
+          Add-PnPWebhookSubscription -List "${{ github.event.inputs.list-name }}" -NotificationUrl "${{ github.event.inputs.api-url }}" -ExpirationDate (Get-Date).AddMonths(6).AddDays(-5).ToString("yyyy-MM-dd") -ClientState "${{ secrets.SHAREPOINT_WEBHOOK_SECRET }}";
+          Write-Host "Done.";
