@@ -39,6 +39,7 @@ embeddingFormat="OpenAI";
 dotNetCoreRuntime="dotnet:10";
 foundryAPIVersion="2024-05-01-preview";
 embeddingModel="text-embedding-3-small";
+swaggerCallback="/swagger/oauth2-redirect.html";
 apiScopeId="3e57e494-4514-4155-bb1d-6ea84a8ceB5e";
 resourceGroupName="$resourceGroupName-$environmentNormalized";
 
@@ -82,7 +83,7 @@ case "$environmentNormalized" in
     *)
         #default to dev resource parameters
         subDomain="$subDomain-$environmentNormalized";
-        authRedirectURLs="'$localhostURL$authCallback'";
+        authRedirectURLs="'$localhostURL$authCallback','$localhostURL$swaggerCallback'";
         ;;
 esac
 
