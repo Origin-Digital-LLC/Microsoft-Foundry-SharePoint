@@ -1,4 +1,4 @@
-name: Foundry SharePoint Knowledge SharePoint Deployment
+name: Foundry SharePoint Knowledge SharePoint App Permission Deployment
 
 on: 
   workflow_dispatch:
@@ -12,12 +12,13 @@ on:
         default: <your site collection url>
         description: The absolute URL to the target SharePoint site collection.
       sharepoint-permissions:
-        required: true
         default: Read
+        required: true
         description: A string containing the SharePoint access to grant the app.
     
 jobs:
   run-pnp:
+    name: Run PnP
     runs-on: windows-latest
 
     steps:
