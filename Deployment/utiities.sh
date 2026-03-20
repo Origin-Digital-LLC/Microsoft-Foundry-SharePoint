@@ -773,6 +773,7 @@ function expose_entra_id_app_scope()
 	local name=$3;
  	local appId=$1;
 	local value=$4;
+	local preAuthorizedAppIdsJSON=$5;
 	echo "Ensuring scope $name on Entra Id app $appId." >&2;
 
 	#create application uri
@@ -780,7 +781,7 @@ function expose_entra_id_app_scope()
 	local appURI=$(az ad app update --id $appId --identifier-uris $uri);
 
 	#update app
-	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":[],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
+	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
 	local appScope=$(az ad app update --id $appId --set "api=$json");
 
 	#return
