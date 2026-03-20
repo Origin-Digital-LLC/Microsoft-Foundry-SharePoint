@@ -129,6 +129,15 @@ namespace FoundrySharePointKnowledge.Common
             else
                 throw new InvalidOperationException($"{uri} is not a proper URL for setting {propertyName}.");
         }
+
+        /// <summary>
+        /// Ensures a unique SharePoint Graph list item id.
+        /// </summary>
+        public static string CreateUniqueId(params string[] ids)
+        {
+            //return
+            return string.Join(FSPKConstants.Search.Fields.IdDelimiter, ids);
+        }
         #endregion
     }
 }

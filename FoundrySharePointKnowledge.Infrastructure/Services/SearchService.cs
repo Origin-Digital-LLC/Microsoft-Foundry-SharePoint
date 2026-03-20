@@ -7,8 +7,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Graph;
-using Microsoft.Graph.Models;
 using Microsoft.Extensions.Logging;
 
 using Azure;
@@ -43,12 +41,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         private readonly BlobServiceClient _blobClient;
         private readonly ILogger<SearchService> _logger;
         private readonly TableServiceClient _tableClient;
-        private readonly GraphServiceClient _graphClient;
         private readonly FoundrySettings _foundrySettings;
         private readonly EntraIDSettings _entraIDSettings;
         private readonly AzureSearchSettings _searchSettings;
         private readonly SearchIndexClient _searchIndexClient;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ISharePointService _sharePointService;
         private readonly SearchIndexerClient _searchIndexerClient;
         private readonly ImageEmbeddingsClient _imageEmbeddingsClient;
         private readonly Dictionary<string, SearchClient> _searchClients;
@@ -58,11 +56,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         public SearchService(BlobServiceClient blobClient,
                              ILogger<SearchService> logger,
                              TableServiceClient tableClient,
-                             GraphServiceClient graphClient,
                              FoundrySettings foundrySettings,
                              EntraIDSettings entraIDSettings,
                              AzureSearchSettings searchSettings,
                              SearchIndexClient searchIndexClient,
+                             ISharePointService sharePointService,
                              IHttpClientFactory httpClientFactory,
                              SearchIndexerClient searchIndexerClient,
                              ImageEmbeddingsClient imageEmbeddingsClient,
@@ -73,12 +71,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this._blobClient = blobClient ?? throw new ArgumentNullException(nameof(blobClient));
             this._tableClient = tableClient ?? throw new ArgumentNullException(nameof(tableClient));
-            this._graphClient = graphClient ?? throw new ArgumentNullException(nameof(graphClient));
             this._searchClients = searchClients ?? throw new ArgumentNullException(nameof(searchClients));
             this._searchSettings = searchSettings ?? throw new ArgumentNullException(nameof(searchSettings));
             this._foundrySettings = foundrySettings ?? throw new ArgumentNullException(nameof(foundrySettings));
             this._entraIDSettings = entraIDSettings ?? throw new ArgumentNullException(nameof(entraIDSettings));
             this._searchIndexClient = searchIndexClient ?? throw new ArgumentNullException(nameof(searchIndexClient));
+            this._sharePointService = sharePointService ?? throw new ArgumentNullException(nameof(sharePointService));
             this._httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
             this._searchIndexerClient = searchIndexerClient ?? throw new ArgumentNullException(nameof(searchIndexerClient));
             this._imageEmbeddingsClient = imageEmbeddingsClient ?? throw new ArgumentNullException(nameof(imageEmbeddingsClient));
@@ -165,7 +163,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this._logger.LogInformation($"Acquiring file {file?.ToString() ?? "N/A"}.");
 
                 //download file from sharepoint
-                byte[] fileContents = await this.GetFileContentsLeastPrivilegedAsync(file);
+                byte[] fileContents = await this._sharePointService.GetFileContentsLeastPrivilegedAsync(file);
                 if (!fileContents?.Any() ?? true)
                 {
                     //error
@@ -448,12 +446,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Creates a search index that expects "pre-vectorized" content. If there is an existing index with the same name, it will be deleted first.
         /// </summary>
+        [Obsolete("This is no longer used. Leaving it here for posterity.")]
         public async Task<string> EnsureVectorizedIndexAsync(string indexName)
         {
             try
             {
-                //initialization
-                SPFileChunk dummyFileChunk = new SPFileChunk();
+                //initialization                
                 SearchIndex index = await this.EnsureIndexAsync(indexName);
 
                 //configure vector search compression
@@ -469,22 +467,193 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this.AddSearchIndexVectorProfile(index, FSPKConstants.Search.Profiles.Compressed, FSPKConstants.Search.Algorithms.Cosine.Name, FSPKConstants.Search.Compression.Scalar, null);
 
                 //add standard fields
-                this.AddStandardField(index, nameof(dummyFileChunk.Id), true, true, true, false, null, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.URL), false, false, true, false, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.Name), false, false, true, false, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.ItemId), false, true, true, true, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.Title), false, false, true, false, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.DriveId), false, true, true, true, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.PageNumber), false, true, true, true, false, null, SearchFieldDataType.Int32);
-                this.AddStandardField(index, nameof(dummyFileChunk.SecurityData), false, false, false, false, true, null, SearchFieldDataType.String);
-                this.AddStandardField(index, nameof(dummyFileChunk.Content), false, false, false, false, true, LexicalAnalyzerName.EnMicrosoft, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.Id), true, true, true, false, null, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.URL), false, false, true, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.Name), false, false, true, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.ItemId), false, true, true, true, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.Title), false, false, true, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.DriveId), false, true, true, true, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.PageNumber), false, true, true, true, false, null, SearchFieldDataType.Int32);
+                this.AddStandardField(index, nameof(SPFileChunk.SecurityData), false, false, false, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, nameof(SPFileChunk.Content), false, false, false, false, true, LexicalAnalyzerName.EnMicrosoft, SearchFieldDataType.String);
 
                 //add vector fields
-                this.AddVectorField(index, nameof(dummyFileChunk.TitleVector), FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.Compressed);
-                this.AddVectorField(index, nameof(dummyFileChunk.ContentVector), FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.Compressed);
+                this.AddVectorField(index, nameof(SPFileChunk.TitleVector), FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.Compressed);
+                this.AddVectorField(index, nameof(SPFileChunk.ContentVector), FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.Compressed);
 
                 //return
                 await this._searchIndexClient.CreateIndexAsync(index);
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogCritical(ex, "Unable to deploy search infrastructure.");
+                return ex.Message;
+            }
+        }
+
+        /// <summary>
+        /// Creates a search index that holds SharePoint list content. If there is an existing index with the same name, it will be deleted first.
+        /// </summary>
+        public async Task<string> EnsureSharePointListIndexAsync(string indexName)
+        {
+            try
+            {
+                //initialization
+                SearchIndex index = await this.EnsureIndexAsync(indexName);
+
+                //configure vector search algorithm
+                this.AddSearchIndexVectorHNSWAlgorithm(index, FSPKConstants.Search.Algorithms.Cosine.Name, VectorSearchAlgorithmMetric.Cosine, FSPKConstants.Search.Algorithms.M, FSPKConstants.Search.Algorithms.Cosine.EFSearch, FSPKConstants.Search.Algorithms.Cosine.EFConstruction);
+
+                //configure vector search vectorizer
+                this.AddAzureOpenAIVectorizer(index, FSPKConstants.Search.Vectorization.OpenAI);
+
+                //configure vector search profile
+                this.AddSearchIndexVectorProfile(index, FSPKConstants.Search.Profiles.OpenAI, FSPKConstants.Search.Algorithms.Cosine.Name, null, FSPKConstants.Search.Vectorization.OpenAI);
+
+                //get field names
+                string url = nameof(SPListItemTableEntity.URL);
+                string title = nameof(SPListItemTableEntity.Title);
+                string rowKey = nameof(SPListItemTableEntity.RowKey);
+                string siteId = nameof(SPListItemTableEntity.SiteId);
+                string uniqueId = nameof(SPListItemTableEntity.UniqueId);
+                string isDeleted = nameof(SPListItemTableEntity.IsDeleted);
+                string timestamp = nameof(SPListItemTableEntity.Timestamp);
+                string titleVector = FSPKConstants.Search.Fields.TitleVector;
+                string description = nameof(SPListItemTableEntity.Description);
+                string partitionKey = nameof(SPListItemTableEntity.PartitionKey);
+                string descriptionVector = FSPKConstants.Search.Fields.DescriptionVector;
+
+                //get field abstractions
+                string urlAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(url);
+                string titleAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(title);
+                string siteIdAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(siteId);
+                string timestampAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(timestamp);
+                string titleVectorAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(titleVector);
+                string descriptionAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(description);
+                string partitionKeyAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(partitionKey);
+                string descriptionVectorAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(descriptionVector);
+
+                //add fields                
+                this.AddStandardField(index, url, false, true, true, true, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, title, false, false, true, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, description, false, false, true, false, true, null, SearchFieldDataType.String);
+                this.AddStandardField(index, timestamp, false, false, false, false, false, null, SearchFieldDataType.DateTimeOffset);
+                this.AddStandardField(index, rowKey, false, true, true, true, true, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
+                this.AddStandardField(index, siteId, false, true, true, true, true, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
+                this.AddStandardField(index, uniqueId, true, true, true, false, null, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
+                this.AddVectorField(index, titleVector, FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.OpenAI);
+                this.AddStandardField(index, partitionKey, false, true, true, true, true, LexicalAnalyzerName.Keyword, SearchFieldDataType.String);
+                this.AddVectorField(index, descriptionVector, FSPKConstants.Search.Vectorization.TextDimensions, FSPKConstants.Search.Profiles.OpenAI);
+
+                //rebuild index
+                await this.CreateIndexAsync(index);
+                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.ListItemName);
+                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.ListItemName);
+                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.ListItemSkillSet);
+
+                //configure text skillset
+                SearchIndexerSkillset skillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.ListItemSkillSet, new SearchIndexerSkill[]
+                { 
+                    //assemble array
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ListItemTitleSkill, FSPKConstants.Search.Abstration.Document, titleAbstraction, titleVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ListItemDescriptionSkill, FSPKConstants.Search.Abstration.Document, descriptionAbstraction, descriptionVector),
+                })
+                {
+                    //assemble object
+                    IndexProjection = new SearchIndexerIndexProjection(
+                    [
+                        //assemble array
+                        new SearchIndexerIndexProjectionSelector(index.Name, rowKey, FSPKConstants.Search.Abstration.Document, new InputFieldMappingEntry[]
+                        {
+                            //assemble object
+                            new InputFieldMappingEntry(url)
+                            {
+                                //assemble object
+                                Source = urlAbstraction
+                            },
+                            new InputFieldMappingEntry(title)
+                            {
+                                //assemble object
+                                Source = titleAbstraction
+                            },
+                             new InputFieldMappingEntry(siteId)
+                            {
+                                //assemble object
+                                Source = siteIdAbstraction
+                            },
+                            new InputFieldMappingEntry(timestamp)
+                            {
+                                //assemble object
+                                Source = timestampAbstraction
+                            },
+                            new InputFieldMappingEntry(description)
+                            {
+                                //assemble object
+                                Source = descriptionAbstraction
+                            },
+                            new InputFieldMappingEntry(titleVector)
+                            {
+                                //assemble object
+                                Source = titleVectorAbstraction
+                            },
+                            new InputFieldMappingEntry(partitionKey)
+                            {
+                                //assemble object
+                                Source = partitionKeyAbstraction
+                            },
+                            new InputFieldMappingEntry(descriptionVector)
+                            {
+                                //assemble object
+                                Source = descriptionVectorAbstraction
+                            }
+                        }),
+                    ])
+                    {
+                        //assemble object
+                        Parameters = new SearchIndexerIndexProjectionsParameters()
+                        {
+                            //assemble object
+                            ProjectionMode = IndexProjectionMode.SkipIndexingParentDocuments
+                        }
+                    },
+                };
+
+                //ensure azure tables
+                TableClient sharePointListItemTable = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.SharePointListItems);
+                TableClient deltaTokens = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.SharePointDeltaTokens);
+                await sharePointListItemTable.CreateIfNotExistsAsync();
+                await deltaTokens.CreateIfNotExistsAsync();
+
+                //ensure last time check for webhook
+                NullableResponse<SPListItemTableEntity> existingPlaceholder = await sharePointListItemTable.GetEntityIfExistsAsync<SPListItemTableEntity>(FSPKConstants.SharePoint.Placeholder, FSPKConstants.SharePoint.Placeholder);
+                if (!existingPlaceholder.HasValue)
+                {
+                    //create a placeholder webhook delta token
+                    SPListItemTableEntity placeholder = new SPListItemTableEntity();
+                    placeholder.PartitionKey = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.Description = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.SiteId = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.RowKey = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.Title = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.URL = FSPKConstants.SharePoint.Placeholder;
+                    placeholder.IsDeleted = true;
+
+                    //this ensures the table columns are created prior to the indexer's first run (and since it starts out already deleted, it won't ever get into the index)
+                    await sharePointListItemTable.AddEntityAsync<SPListItemTableEntity>(placeholder);
+                }
+
+                //create skillset
+                await this.CreateSkillSetAsync(skillset);
+
+                //create data source
+                SearchIndexerDataSourceConnection dataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.ListItemName, sharePointListItemTable.Name, false, isDeleted);
+
+                //create indexer
+                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.ListItemName, dataSourceConnection, index.Name, skillset.Name);
+
+                //return
                 return string.Empty;
             }
             catch (Exception ex)
@@ -502,25 +671,23 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         {
             try
             {
-                //initialization
-                VectorizedChunk dummyVectorizedChunk = new VectorizedChunk();
-                VectorizedImage dummyVectorizedImage = new VectorizedImage();
+                //initialization                                
                 string allDocumentPages = FSPKConstants.Search.Abstration.Document.CombineURL(FSPKConstants.Search.Abstration.Pages).CombineURL(FSPKConstants.Search.Abstration.Star);
                 string allExtractedImages = FSPKConstants.Search.Abstration.Document.CombineURL(FSPKConstants.Search.Abstration.ExtractedImages).CombineURL(FSPKConstants.Search.Abstration.Star);
 
                 //get text field names
-                string url = nameof(dummyVectorizedChunk.URL);
-                string text = nameof(dummyVectorizedChunk.Text);
-                string email = nameof(dummyVectorizedChunk.Email);
-                string emails = nameof(dummyVectorizedChunk.Emails);
-                string fullName = nameof(dummyVectorizedChunk.FullName);
-                string fullNames = nameof(dummyVectorizedChunk.FullNames);
-                string contentId = nameof(dummyVectorizedChunk.ContentId);
-                string documentId = nameof(dummyVectorizedChunk.DocumentId);
-                string textVector = nameof(dummyVectorizedChunk.TextVector);
-                string fullNameVector = nameof(dummyVectorizedChunk.FullNameVector);
+                string url = nameof(VectorizedChunk.URL);
+                string text = nameof(VectorizedChunk.Text);
+                string email = nameof(VectorizedChunk.Email);
+                string emails = nameof(VectorizedChunk.Emails);
+                string fullName = nameof(VectorizedChunk.FullName);
+                string fullNames = nameof(VectorizedChunk.FullNames);
+                string contentId = nameof(VectorizedChunk.ContentId);
+                string documentId = nameof(VectorizedChunk.DocumentId);
+                string textVector = nameof(VectorizedChunk.TextVector);
+                string fullNameVector = nameof(VectorizedChunk.FullNameVector);
 
-                //get abstracted field names
+                //get text field abstractions
                 string urlAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(url);
                 string emailsAbstration = FSPKConstants.Search.Abstration.Document.CombineURL(emails);
                 string fullNamesAbstraction = FSPKConstants.Search.Abstration.Document.CombineURL(fullNames);
@@ -534,8 +701,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 string firstFullName = fullNamesAbstraction.CombineURL(0.ToString());
 
                 //get image field names
-                string imageVector = nameof(dummyVectorizedImage.ImageVector);
-                string imageURLVector = nameof(dummyVectorizedImage.ImageURLVector);
+                string imageVector = nameof(VectorizedImage.ImageVector);
+                string imageURLVector = nameof(VectorizedImage.ImageURLVector);
 
                 //ensure blob storage containers
                 BlobContainerClient sourceContainer = this._blobClient.GetBlobContainerClient(FSPKConstants.AzureStorage.Blobs.SourceContainer);
@@ -929,7 +1096,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             double[] titleVector = await this.VectorizeTextAsync(file.Title);
 
             //send file to Foundry for analysis
-            byte[] fileContents = await this.GetFileContentsMostPrivilegedAsync(file);
+            byte[] fileContents = await this._sharePointService.GetFileContentsMostPrivilegedAsync(file);
             this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
             AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.ModelId, new BinaryData(fileContents));
             Operation<AnalyzeResult> result = await this._documentIntelligenceClient.AnalyzeDocumentAsync(WaitUntil.Completed, options);
@@ -962,99 +1129,6 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //error
                 this._logger.LogError($"Document analysis failed for file {file.Name}.");
                 return null;
-            }
-        }
-
-        /// <summary>
-        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
-        /// </summary>
-        private async Task<byte[]> GetFileContentsMostPrivilegedAsync(SPFile file)
-        {
-            //initialization
-            using (this._logger.BeginScope(new Dictionary<string, object>
-            {
-                //assemble dictionary
-                { $"{nameof(this.GetFileContentsMostPrivilegedAsync)}", file?.URL ?? "N/A" }
-            }))
-            {
-                try
-                {
-                    //initialization                
-                    this.EnsureFile(file);
-                    this._logger.LogInformation($"Downloading {file.Name} from SharePoint via item {file.ItemId} and drive {file.DriveId}.");
-
-                    //get file contents
-                    using (Stream contentStream = await this._graphClient.Drives[file.DriveId].Items[file.ItemId].Content.GetAsync())
-                    {
-                        //convert to byte array
-                        using (MemoryStream memoryStream = new MemoryStream())
-                        {
-                            //return
-                            this._logger.LogInformation($"Acquired {contentStream.Length} bytes for SharePoint file {file.URL}.");
-                            await contentStream.CopyToAsync(memoryStream);
-                            return memoryStream.ToArray();
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    //error
-                    this._logger.LogError(ex, $"Unable to download {file.Name} from SharePoint.");
-                    throw;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Downloads a file's contents from SharePoint via Graph with an app having Files.Read.All.
-        /// </summary>
-        private async Task<byte[]> GetFileContentsLeastPrivilegedAsync(SPFile file)
-        {
-            //initialization
-            using (this._logger.BeginScope(new Dictionary<string, object>
-            {
-                //assemble dictionary
-                { $"{nameof(this.GetFileContentsLeastPrivilegedAsync)}", file?.URL ?? "N/A" }
-            }))
-            {
-                try
-                {
-                    //check file                
-                    this.EnsureFile(file);
-                    this._logger.LogInformation($"Downloading {file.Name} from SharePoint.");
-
-                    //parse the raw URL provided from the power automate flow
-                    Uri uri = new Uri(file.URL);
-                    string[] uriParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-                    //build the URL form of the site id graph expects
-                    string managedPath = uriParts[0];
-                    string siteCollectionURL = uriParts[1];
-                    string siteCollectionPath = $"{uri.Host}:/{managedPath}/{siteCollectionURL}";
-                    this._logger.LogInformation($"Loading site collection {siteCollectionPath} ({nameof(managedPath)}={managedPath}; {nameof(siteCollectionURL)}={siteCollectionURL}; {nameof(siteCollectionPath)}={siteCollectionPath})");
-
-                    //convert site URL to site id
-                    Site site = await this._graphClient.Sites[siteCollectionPath].GetAsync();
-                    Guid siteId = Guid.Parse(site.Id.Split(',')[1]);
-
-                    //download file
-                    this._logger.LogInformation($"Acquiring item {file.ItemId} of drive {file.DriveId} from site {siteId}.");
-                    using HttpResponseMessage response = await this._httpClientFactory.CreateClient(FSPKConstants.SharePoint.Client).GetAsync(string.Format(FSPKConstants.SharePoint.FileDownloadURLFormat, siteId, file.DriveId, file.ItemId));
-
-                    //get file contents
-                    response.EnsureSuccessStatusCode();
-                    byte[] contents = await response.Content.ReadAsByteArrayAsync();
-                    this._logger.LogInformation($"Acquired {contents.Length} bytes for {file.Name} from {siteCollectionPath}/{uriParts[2]}.");
-
-                    //return
-                    return contents;
-                }
-                catch (Exception ex)
-                {
-                    //error
-                    this._logger.LogError(ex, $"Unable to download {file.Name} from SharePoint.");
-                    throw;
-                }
             }
         }
 
@@ -1097,24 +1171,6 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 this._logger.LogError(ex, $"Unable to vectorize content: {result}");
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Throws an excpetion if any required fields are missing from the SPFile.
-        /// </summary>
-        private void EnsureFile(SPFile file)
-        {
-            //return
-            if (file == null)
-                throw new ArgumentNullException(nameof(file));
-            if (string.IsNullOrWhiteSpace(file.DriveId))
-                throw new ArgumentException("DriveId is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.ItemId))
-                throw new ArgumentException("ItemId is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.Name))
-                throw new ArgumentException("Name is required.", nameof(file));
-            if (string.IsNullOrWhiteSpace(file.URL))
-                throw new ArgumentException("URL is required.", nameof(file));
         }
 
         /// <summary>
@@ -1343,17 +1399,22 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Creates a blob data source. 
         /// </summary>
-        private async Task<SearchIndexerDataSourceConnection> CreateAzureStorageDatasourceAsync(string dataSourceName, string containerName, bool trueForBlobFalseForTable)
+        private async Task<SearchIndexerDataSourceConnection> CreateAzureStorageDatasourceAsync(string dataSourceName, string containerName, bool trueForBlobFalseForTable, string softDeleteBooleanColumnName = null)
         {
             //initialization
-            SearchIndexerDataSourceConnection dataSourceConnection = new SearchIndexerDataSourceConnection(dataSourceName,
-                                                                                                           trueForBlobFalseForTable
-                                                                                                            ? SearchIndexerDataSourceType.AzureBlob
-                                                                                                            : SearchIndexerDataSourceType.AzureTable,
-                                                                                                           this._searchSettings.AzureStorageResourceId,
-                                                                                                           new SearchIndexerDataContainer(containerName));
+            SearchIndexerDataSourceType dataSourceType = trueForBlobFalseForTable ? SearchIndexerDataSourceType.AzureBlob : SearchIndexerDataSourceType.AzureTable;
+            SearchIndexerDataSourceConnection dataSourceConnection = new SearchIndexerDataSourceConnection(dataSourceName, dataSourceType, this._searchSettings.AzureStorageResourceId, new SearchIndexerDataContainer(containerName));
 
-            //creae data source
+            //configure soft delete detection
+            if (!string.IsNullOrWhiteSpace(softDeleteBooleanColumnName))
+                dataSourceConnection.DataDeletionDetectionPolicy = new SoftDeleteColumnDeletionDetectionPolicy()
+                {
+                    //assemble object
+                    SoftDeleteColumnName = softDeleteBooleanColumnName,
+                    SoftDeleteMarkerValue = true.ToString().ToLowerInvariant()
+                };
+
+            //create data source
             dataSourceConnection.DataChangeDetectionPolicy = new HighWaterMarkChangeDetectionPolicy(trueForBlobFalseForTable ? FSPKConstants.Search.Fields.MetadataStorageLastModified : FSPKConstants.Search.Fields.Timestamp);
             await this.CreateDatasourceAsync(dataSourceConnection);
 

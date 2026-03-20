@@ -155,6 +155,21 @@ namespace FoundrySharePointKnowledge.API.Utilities
             //return
             return new BlobStorageSettings(name, connectionString);
         }
+
+        /// <summary>
+        /// Gets SharePoint settings from Key Vault.
+        /// </summary>
+        public static async Task<SharePointSettings> GetSharePointSettingsAsync(SecretClient keyVaultClient)
+        {
+            //initialization
+            Response<KeyVaultSecret> webhookSecretSecret = await keyVaultClient.GetSecretAsync(FSPKConstants.Settings.KeyVault.SharePoint.WebhookSecret);
+
+            //extract secrets
+            string webhookSecret = KeyVaultUtilities.GetSecretValue(webhookSecretSecret, FSPKConstants.Settings.KeyVault.SharePoint.WebhookSecret);
+
+            //return
+            return new SharePointSettings(webhookSecret);
+        }
         #endregion
         #region Private Methods
         /// <summary>

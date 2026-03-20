@@ -25,6 +25,7 @@ using FoundrySharePointKnowledge.Domain.Contracts;
 
 using OpenAI.Responses;
 
+#pragma warning disable AAIP001
 #pragma warning disable OPENAI001
 
 namespace FoundrySharePointKnowledge.Infrastructure.Services
@@ -264,6 +265,9 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Moves agents from one foundry project to another.
+        /// </summary>
         public async Task<string> MigrateAgentsAsync(string sourceFoundryProjectURL, string destinationFoundryProjectURL, IToolDefintiion[] destinationTools)
         {
             //initialization
@@ -280,6 +284,35 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 ArmClient armClient = new ArmClient(credential);
                 AIProjectClient sourceClient = new AIProjectClient(sourceFroundryProjectURI, credential);
                 AIProjectClient destinationClient = new AIProjectClient(destinationFoundryProjectURI, credential);
+
+                await foreach (AgentRecord agent in sourceClient.Agents.GetAgentsAsync())
+                {
+                    AgentVersion latestVersion = agent.GetLatestVersion();
+                    if (latestVersion.Definition is PromptAgentDefinition)
+                    {
+                        PromptAgentDefinition definition = (PromptAgentDefinition)latestVersion.Definition;
+                    }
+                    else if (latestVersion.Definition is WorkflowAgentDefinition)
+                    {
+                        //TODO
+                        WorkflowAgentDefinition definition = (WorkflowAgentDefinition)latestVersion.Definition;
+                    }
+                    else if (latestVersion.Definition is HostedAgentDefinition)
+                    {
+                        //TODO
+                        HostedAgentDefinition definition = (HostedAgentDefinition)latestVersion.Definition;
+                    }
+                    else
+                    {
+                        //unsupported
+                        throw new Exception($"Agent {agent.Name} has an unsupported definition of type {latestVersion.Definition.GetType().Name}.");
+                    }
+                }
+
+                await foreach (var connection in sourceClient.Connections.GetConnectionsAsync())
+                {
+                    
+                }
 
                 //return
                 return string.Empty;
