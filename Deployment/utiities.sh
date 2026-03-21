@@ -773,12 +773,26 @@ function expose_entra_id_app_scope()
 	local name=$3;
  	local appId=$1;
 	local value=$4;
-	local preAuthorizedAppIdsJSON=$5;
+	local rawPreAuthorizedAppIds=$5;
 	echo "Ensuring scope $name on Entra Id app $appId." >&2;
 
 	#create application uri
 	local uri="api://$appId";
 	local appURI=$(az ad app update --id $appId --identifier-uris $uri);
+
+	#create preauthorized client apps JSON template (since we can't pass arrays to functons in other scripts)
+	local preAuthorizedAppsJSON="";
+	local preAuthorizedAppIds=(${rawPreAuthorizedAppIds//|/ });
+
+	#populate preauthorized client app ids JSON
+	for p in "${!preAuthorizedAppIds[@]}"; do
+	    local preAuthorizedApp='{"appId":"'"${preAuthorizedAppIds[$p]}"'","delegatedPermissionIds": ["'"$id"'"]}';
+	    if [ "$p" -eq 0 ]; then
+	        preAuthorizedAppIdsJSON="$preAuthorizedApp";
+	    else
+	        preAuthorizedAppIdsJSON="$preAuthorizedAppIdsJSON,$preAuthorizedApp";
+	    fi
+	done
 
 	#update app
 	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
