@@ -40,7 +40,6 @@ dotNetCoreRuntime="dotnet:10";
 foundryAPIVersion="2024-05-01-preview";
 embeddingModel="text-embedding-3-small";
 swaggerCallback="/swagger/oauth2-redirect.html";
-apiScopeId="3e57e494-4514-4155-bb1d-6ea84a8ceB5e";
 resourceGroupName="$resourceGroupName-$environmentNormalized";
 
 #entra id constants
@@ -48,8 +47,10 @@ emailScope="email";
 signInScope="openid";
 profileScope="profile";
 userReadScope="User.Read";
+apiScopeName="access_as_user";
 sitesReadAllScope="Sites.Read.All";
 selectedSitesScope="Sites.Selected";
+apiScopeId="3e57e494-4514-4155-bb1d-6ea84a8ceB5e";
 cognitiveServicesUserPermission="Cognitive Services User";
 storageBlobDataReaderPermission="Storage Blob Data Reader";
 graphAPIPermissionId="00000003-0000-0000-c000-000000000000";
@@ -61,6 +62,7 @@ userReadPermissionScopeId="e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope";
 storageTableDataContributorPermission="Storage Table Data Contributor";
 selectedSitesPermissionScopeId="883ea226-0bf2-4a8f-9f9d-92c9162a727d=Role";
 sitesReadAllPermissionScopeId="205e70e5-aba6-4c52-a976-6d2d46c48043=Scope";
+preAuthorizedAppIds="00000003-0000-0ff1-ce00-000000000000|08e18876-6177-487e-b8b5-cf950c1e598c";
 
 #reference utilities
 source ./deployment/utilities.sh;
@@ -176,7 +178,7 @@ authClientId=${appComponents[0]};
 authClientSecret=${appComponents[1]};
 
 #expose app api scope
-appAPIScope=$(expose_entra_id_app_scope "$authClientId" "$apiScopeId" "Call API" "access_as_user");
+appAPIScope=$(expose_entra_id_app_scope "$authClientId" "$apiScopeId" "$apiScopeName" "$preAuthorizedAppIds");
 
 #ensure "user" key vault acccess policy for the entra id auth app
 authEnterpriseAppObjectId=$(get_app_registration_enterprise_object_id "$authClientId");
