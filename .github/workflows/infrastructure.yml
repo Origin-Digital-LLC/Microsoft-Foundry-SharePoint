@@ -103,17 +103,14 @@ jobs:
         working-directory: ./${{ env.drop_folder }}
     steps:  
       - name: Checkout Branch
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4 
         
       - name: Azure CLI Login
-        if: github.event_name == 'workflow_dispatch'
         uses: azure/login@v2
         with:
          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
       
       - name: Deploy Resource Group
-        if: github.event_name == 'workflow_dispatch'        
         uses: azure/cli@v2
         with:
           azcliversion: latest
