@@ -88,7 +88,8 @@ on:
       #  default: "1"
       #  description: The image embeddings Azure Foundry API version.
 env:
-  drop_folder: Deployment
+  SCRIPT_FILE_NAME: infrastructure.sh
+  INFRASTRUCTURE_WORKING_DIRECTORY: deployment
 
 permissions:
   id-token: write
@@ -100,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:        
-        working-directory: ./${{ env.drop_folder }}
+        working-directory: ./${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
     steps:  
       - name: Checkout Branch
         uses: actions/checkout@v4 
@@ -116,10 +117,10 @@ jobs:
           azcliversion: latest
           inlineScript: |
             #initialization
-            chmod +x $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh;
+            chmod +x $GITHUB_WORKSPACE/${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }};
 
             #return
-            $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh \
+            $GITHUB_WORKSPACE/${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }} \
               "${{ github.event.inputs.target-environment }}" \
               "${{ github.event.inputs.resource-group-name-prefix }}" \
               "${{ github.event.inputs.deployment-entra-enterprise-app-object-id }}" \
