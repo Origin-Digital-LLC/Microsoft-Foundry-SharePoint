@@ -246,6 +246,7 @@ apiURLResult=$(ensure_key_vault_secret "$keyVaultName" "api-url" "$apiURL");
 tenantIdResult=$(ensure_key_vault_secret "$keyVaultName" "auth-tenant-id" "$tenantId");
 authClientIdResult=$(ensure_key_vault_secret "$keyVaultName" "auth-client-id" "$authClientId");
 apiPrincipalIdResult=$(ensure_key_vault_secret "$keyVaultName" "api-principal-id" "$apiPrincipalId");
+subscriptionIdResult=$(ensure_key_vault_secret "$keyVaultName" "subscription-id", "$subscriptionId");
 authClientSecretResult=$(ensure_key_vault_secret "$keyVaultName" "auth-client-secret" "$authClientSecret");
 sharepointWebhookSecretResult=$(ensure_key_vault_secret "$keyVaultName" "sharepoint-webhook-secret" "$sharepointWebhookSecret");
 
