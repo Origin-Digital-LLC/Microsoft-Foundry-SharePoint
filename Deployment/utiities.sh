@@ -474,17 +474,23 @@ function ensure_foundry_project()
 		echo "Foundry $name already exists." >&2;
 	fi
 
-	#check existing foundry project
-   	echo "Ensuring foundry project $projectName." >&2;
-	local project=$(az cognitiveservices account project list --resource-group $resourceGroupName --name $name --query "[?name == '$name/$projectName']" --output "tsv");
-	if [ -z "$project" ]; then
-	 	#create foundry project
-	   	echo "Creating foundry project $projectName." >&2;
-		local projectId=$(az cognitiveservices account project create --resource-group $resourceGroupName --name $name --project-name $projectName --display-name $projectName --location $region --description "This is the $projectName agent pool." --query "id" --output "tsv" --assign-identity);
-	 	echo "Foundry project $projectName created successfully." >&2;
+	#check project
+	if [ -z "$projectName" ]; then
+		#skip project
+		echo "Skipping project creation for Foundry $name." >&2;
 	else
-		#foundry project already exists
-		echo "Foundry project $projectName already exists." >&2;
+		#check existing foundry project
+	   	echo "Ensuring foundry project $projectName." >&2;
+		local project=$(az cognitiveservices account project list --resource-group $resourceGroupName --name $name --query "[?name == '$name/$projectName']" --output "tsv");
+		if [ -z "$project" ]; then
+		 	#create foundry project
+		   	echo "Creating foundry project $projectName." >&2;
+			local projectId=$(az cognitiveservices account project create --resource-group $resourceGroupName --name $name --project-name $projectName --display-name $projectName --location $region --description "This is the $projectName agent pool." --query "id" --output "tsv" --assign-identity);
+		 	echo "Foundry project $projectName created successfully." >&2;
+		else
+			#foundry project already exists
+			echo "Foundry project $projectName already exists." >&2;
+		fi
 	fi
 
  	#assign foundry permissions to the given principal (if provided)
