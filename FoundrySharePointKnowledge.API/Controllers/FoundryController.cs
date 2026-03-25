@@ -111,16 +111,16 @@ namespace FoundrySharePointKnowledge.API.Controllers
         }
 
         /// <summary>
-        /// Returns the Foundry project endpoint.
+        /// Migrates foundry agents from one project to another.
         /// </summary>
-        [HttpPost(FSPKConstants.Routing.API.CreateAgent)]
-        public async Task<IActionResult> CreateAgentAsync([FromBody()] CreateAgentRequest request)
+        [HttpPost(FSPKConstants.Routing.API.MigrateAgents)]
+        public async Task<IActionResult> MigrateAgents([FromBody()] MigrateAgentsRequest request)
         {
             //initialization
-            this._logger.LogInformation($"Handling request to {nameof(this.CreateAgentAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+            this._logger.LogInformation($"Handling request to {nameof(this.MigrateAgents)} from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //create agent
-            string result = await this._foundryService.DeployAgentAsync(request, this._entraIdSettings.ToCredential());
+            string result = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
 
             //return
             if (string.IsNullOrWhiteSpace(result))

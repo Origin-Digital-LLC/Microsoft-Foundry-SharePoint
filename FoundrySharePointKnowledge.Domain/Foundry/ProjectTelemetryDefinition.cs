@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-
+﻿using Azure.ResourceManager.CognitiveServices;
 using Azure.ResourceManager.CognitiveServices.Models;
 
 using FoundrySharePointKnowledge.Common;
@@ -10,10 +9,10 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
     /// <summary>
     /// This holds the settings for a Foundry project's connection Application Insights.
     /// </summary>
-    public record ProjectTelemetry : IToolDefintiion
+    public record ProjectTelemetryDefinition : IToolDefintion
     {
         #region Initialization
-        public ProjectTelemetry(string connectionString, string resourceId)
+        public ProjectTelemetryDefinition(string connectionString, string resourceId)
         {
             //initialization
             this.ResourceId = resourceId;
@@ -21,9 +20,11 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
         }
         #endregion
         #region Properties
-        public bool IsAgent => false;
         public string ResourceId { get; init; }
         public string ConnectionString { get; init; }
+
+        public bool IsAgent => false;
+        public ToolType ConnectionType => ToolType.ApplicationInsights;
         #endregion
         #region Public Methods
         public override string ToString()
@@ -35,35 +36,17 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
         /// <summary>
         /// Builds the tool definition's properties.
         /// </summary>
-        public CognitiveServicesConnectionProperties ToProperties()
+        public CognitiveServicesConnectionData CreateConnection()
         {
             //return
-            return new ApiKeyAuthConnectionProperties
+            return new CognitiveServicesConnectionData(new ApiKeyAuthConnectionProperties
             {
                 //assemble object
                 IsSharedToAll = true,
                 Target = this.ResourceId,
                 CredentialsKey = this.ConnectionString,
                 Category = FSPKConstants.Foundry.Tools.AppInsights
-            };
-        }
-
-        /// <summary>
-        /// Builds the tool definition's metadata.
-        /// </summary>
-        public Dictionary<string, string> ToMetadata()
-        {
-            //return
-            return new Dictionary<string, string>();            
-        }
-
-        /// <summary>
-        /// Builds the tool definition's credential keys.
-        /// </summary>
-        public Dictionary<string, string> ToCredentialKeys()
-        {
-            //return
-            return new Dictionary<string, string>();
+            });
         }
         #endregion
     }

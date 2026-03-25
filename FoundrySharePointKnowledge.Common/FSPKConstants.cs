@@ -107,6 +107,7 @@ namespace FoundrySharePointKnowledge.Common
                     public const string LLMModel = "foundry-llm-model";
                     public const string ImageModel = "foundry-image-model";
                     public const string AccountKey = "foundry-account-key";
+                    public const string SubscriptionId = "subscription-id";
                     public const string EmbeddingModel = "foundry-embedding-model";
                     public const string OpenAIEndpoint = "foundry-open-ai-endpoint";
                     public const string ProjectEndpoint = "foundry-project-endpoint";
@@ -150,7 +151,7 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class Search
         {
-            public const string EndpointSuffix = ".search.windows.net/";
+            public const string EndpointFormat = "https://{0}.search.windows.net/";
             public static class Queries
             {
                 public const string Space = "%20";
@@ -364,6 +365,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string SharePointTarget = "-";
                 public const string DisplayName = "displayName";
                 public const string SearchType = "azure_ai_search";
+                public const string ResourceId = nameof(ResourceId);
                 public const string AppInsights = nameof(AppInsights);
                 public const string SharePointGrounding = "sharepoint_grounding_preview";
             }
@@ -429,10 +431,10 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Status = "status";
                 public const string Webook = "webhook";
                 public const string ProperCase = "proper-case";
-                public const string CreateAgent = "create-agent";
                 public const string SyncListItem = "sync-list-item";
                 public const string SearchQuery = "search/{query?}";
                 public const string DeployVectorized = "vectorized";
+                public const string MigrateAgents = "migrate-agents";
                 public const string VectorizeImage = "vectorize-image";
                 public const string DeployFoundry = "sharepoint-foundry";
                 public const string ExecuteWorkflow = "execute-workflow";

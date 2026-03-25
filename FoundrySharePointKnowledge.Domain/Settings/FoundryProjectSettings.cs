@@ -12,14 +12,21 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         #region Initialization
         [Obsolete("This is only needed for deserialization.")]
         public FoundryProjectSettings() { }
-        public FoundryProjectSettings(string projectEndpoint)
+        public FoundryProjectSettings(string subscriptionId, string projectEndpoint)
         {
             //initialization
-            this.ProjectEndpoint = FSPKUtilities.ParseURI(projectEndpoint, nameof(projectEndpoint));
+            this.ProjectEndpoint = string.IsNullOrWhiteSpace(projectEndpoint) ? throw new ArgumentNullException(nameof(projectEndpoint)) : FSPKUtilities.ParseURI(projectEndpoint, nameof(projectEndpoint));
+
+            //return
+            if (Guid.TryParse(subscriptionId, out _))
+                this.SubscriptionId = subscriptionId;
+            else
+                throw new ArgumentNullException(nameof(subscriptionId));
         }
         #endregion
         #region Properties
         public Uri ProjectEndpoint { get; init; }
+        public string SubscriptionId { get; init; }
         #endregion
     }
 }

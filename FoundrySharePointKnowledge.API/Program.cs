@@ -28,7 +28,6 @@ using Azure.Security.KeyVault.Secrets;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.API.Utilities;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Infrastructure.Services;
@@ -53,10 +52,10 @@ namespace FoundrySharePointKnowledge.API
             bool useSwaggerAuthFlow = Convert.ToBoolean(builder.Configuration[FSPKConstants.Settings.UseSwaggerAuthFlow]);
 
             //get settings
-            SecretClient keyVaultClient = Program.AddKeyVaultClient(builder);
-            EntraIDSettings entraIDSettings = await KeyVaultUtilities.GetEntraIDSettingsAsync(keyVaultClient);
-            SharePointSettings sharePointSettings = await KeyVaultUtilities.GetSharePointSettingsAsync(keyVaultClient);
-            ApplicationInsightsSettings applicationInsightsSettings = await KeyVaultUtilities.GetApplicationInsightsSettingsAsync(keyVaultClient);
+            KeyVaultService keyVaultService = Program.AddKeyVaultService(builder);
+            EntraIDSettings entraIDSettings = await keyVaultService.GetEntraIDSettingsAsync();
+            SharePointSettings sharePointSettings = await keyVaultService.GetSharePointSettingsAsync();
+            ApplicationInsightsSettings applicationInsightsSettings = await keyVaultService.GetApplicationInsightsSettingsAsync();
 
             //configure authentication
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -172,14 +171,14 @@ namespace FoundrySharePointKnowledge.API
 
             //add API clients
             Program.AddGraphClient(builder, entraIDSettings);
-            await Program.AddSearchClientsAsync(builder, keyVaultClient);
+            await Program.AddSearchClientsAsync(builder, keyVaultService);
 
             //add foundry clients
-            FoundrySettings foundrySettings = await Program.AddFoundryClientAsync(builder, keyVaultClient, entraIDSettings);
+            FoundrySettings foundrySettings = await Program.AddFoundryClientAsync(builder, keyVaultService, entraIDSettings);
             Program.AddImageEmbeddingsClient(builder, foundrySettings);
 
             //add storage clients
-            string storageConnectionString = await Program.AddBlobClientAsync(builder, keyVaultClient);
+            string storageConnectionString = await Program.AddBlobClientAsync(builder, keyVaultService);
             Program.AddTableClient(builder, storageConnectionString);
 
             //dependency injection
@@ -224,29 +223,33 @@ namespace FoundrySharePointKnowledge.API
         #endregion
         #region Private Methods
         /// <summary>
-        /// Registers a singleton Key Vault client.
+        /// Registers a singleton Key Vault service.
         /// </summary>
-        private static SecretClient AddKeyVaultClient(WebApplicationBuilder builder)
+        private static KeyVaultService AddKeyVaultService(WebApplicationBuilder builder)
         {
             //initialization
             string keyVaultURL = builder.Configuration[FSPKConstants.Settings.KeyVaultURL];
             if (string.IsNullOrWhiteSpace(keyVaultURL))
                 throw new ArgumentNullException(nameof(keyVaultURL), "Key Vault URL not found.");
 
-            //return
-            SecretClient keyVaultClient = new SecretClient(new Uri(keyVaultURL), new DefaultAzureCredential());
-            builder.Services.AddSingleton(keyVaultClient);
-            return keyVaultClient;
+            //since the key vault service is used during start up, give it a basic logger (as we don't have the app insights connection string yet)
+            using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+            ILogger<KeyVaultService> logger = loggerFactory.CreateLogger<KeyVaultService>();
+
+            //return            
+            KeyVaultService keyVaultService = new KeyVaultService(new SecretClient(new Uri(keyVaultURL), new DefaultAzureCredential()), logger);
+            builder.Services.AddSingleton<IKeyVaultService>(keyVaultService);
+            return keyVaultService;
         }
 
         /// <summary>
         /// Registers a singleton Azure Search client.
         /// </summary>
-        private static async Task AddSearchClientsAsync(WebApplicationBuilder builder, SecretClient keyVaultClient)
+        private static async Task AddSearchClientsAsync(WebApplicationBuilder builder, KeyVaultService keyVaultService)
         {
             //initialization
             Dictionary<string, SearchClient> searchClients = new Dictionary<string, SearchClient>();
-            AzureSearchSettings searchSettings = await KeyVaultUtilities.GetAzureSearchSettingsAsync(keyVaultClient);
+            AzureSearchSettings searchSettings = await keyVaultService.GetAzureSearchSettingsAsync();
 
             //build client components
             Uri uri = new Uri(searchSettings.SearchURL);
@@ -267,7 +270,7 @@ namespace FoundrySharePointKnowledge.API
         /// <summary>
         /// Registers settings and an HTTP client for Foundry.
         /// </summary>
-        private static async Task<FoundrySettings> AddFoundryClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient, EntraIDSettings entraIDSettings)
+        private static async Task<FoundrySettings> AddFoundryClientAsync(WebApplicationBuilder builder, KeyVaultService keyVaultService, EntraIDSettings entraIDSettings)
         {
             //initialization
             string visionModelVersion = builder.Configuration[FSPKConstants.Settings.VisionModelVersion];
@@ -276,8 +279,8 @@ namespace FoundrySharePointKnowledge.API
             string documentIntelligenceAPIVersion = builder.Configuration[FSPKConstants.Settings.DocumentIntelligenceAPIVersion];
 
             //load secrets
-            FoundryProjectSettings foundryProjectSettings = await KeyVaultUtilities.GetFoundryProjectSettingsAsync(keyVaultClient);
-            FoundrySettings foundrySettings = await KeyVaultUtilities.GetFoundrySettingsAsync(keyVaultClient, embeddingAPIVersion, documentIntelligenceAPIVersion, chatCompletionAPIVersion, visionModelVersion);
+            FoundryProjectSettings foundryProjectSettings = await keyVaultService.GetFoundryProjectSettingsAsync();
+            FoundrySettings foundrySettings = await keyVaultService.GetFoundrySettingsAsync(embeddingAPIVersion, documentIntelligenceAPIVersion, chatCompletionAPIVersion, visionModelVersion);
 
             //register settings
             builder.Services.AddSingleton(foundrySettings);
@@ -330,11 +333,11 @@ namespace FoundrySharePointKnowledge.API
         /// <summary>
         /// Configures an azure storage blob client.
         /// </summary>
-        private static async Task<string> AddBlobClientAsync(WebApplicationBuilder builder, SecretClient keyVaultClient)
+        private static async Task<string> AddBlobClientAsync(WebApplicationBuilder builder, KeyVaultService keyVaultService)
         {
             //initialization    
             BlobClientOptions options = new BlobClientOptions();
-            BlobStorageSettings blobStorageSettings = await KeyVaultUtilities.GetBlobStorageSettingsAsync(keyVaultClient);
+            BlobStorageSettings blobStorageSettings = await keyVaultService.GetBlobStorageSettingsAsync();
 
             //configure telemetry
             options.Diagnostics.IsLoggingEnabled = false;
