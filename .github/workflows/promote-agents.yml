@@ -1,0 +1,91 @@
+name: Microsoft Foundry SharePoint Knowledge Agent Promotion
+run-name: Microsoft Foundry SharePoint Knowledge Agent Promotion [${{ inputs.destination-foundry-name || github.run_id }}]
+
+on: 
+  workflow_dispatch:
+    inputs:      
+      auth-app-id:
+        required: true
+        default: 56eedcfb-bf4b-4e2a-a239-e64f8dc2b699
+        description: The app id of the Entra app registration used for authentication.
+      api-endpoint:
+        default: https://cmfug-20260303-api01.azurewebsites.net/Foundry/migrate-agents
+        required: true
+        description: The absolute URL to the deployment API endpoint.
+      force-changes:
+        required: true
+        default: "true"
+        description: If true, this will delete conflicting destination Foundry components.
+      source-resource-group-name:      
+        required: true
+        default: cmfug-20260303
+        description: The name of the source resource group.
+      source-foundry-name:
+        required: true
+        default: foundry01
+        description: The name of the source Foundry resource.
+      destination-region:
+        required: true
+        default: eastus2
+        description: The region of the destination Foundry resource.      
+      destination-resource-group-name:      
+        required: true
+        default: cmfug-20260303
+        description: The name of the destination resource group.  
+      destination-foundry-name:
+        required: true
+        default: foundry02
+        description: The name of the destination Foundry resource.     
+      destination-foundry-sku:
+        default: S0
+        required: true
+        description: The SKU of the destination Foundry resource.
+      destination-key-vault-name:
+        required: true
+        default: vault01
+        description: The name of the destination Key Vault resource.
+          
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  SCRIPT_FILE_NAME: promotion.sh
+  MIGRATION_WORKING_DIRECTORY: deployment
+
+jobs:
+  deploy-infrastructure:
+    name: Agent Migration Job
+    runs-on: ubuntu-latest
+    defaults:
+      run:        
+        working-directory: ./${{ env.MIGRATION_WORKING_DIRECTORY }}
+    steps:  
+      - name: Checkout Branch
+        uses: actions/checkout@v4 
+        
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
+
+      - name: Deploy Resource Group
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            #initialization
+            chmod +x $GITHUB_WORKSPACE/${{ env.MIGRATION_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }};
+
+            #return
+            $GITHUB_WORKSPACE/${{ env.MIGRATION_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }} \
+              "${{ github.event.inputs.auth-app-id }}" \
+              "${{ github.event.inputs.api-endpoint }}" \
+              "${{ github.event.inputs.force-changes }}" \
+              "${{ github.event.inputs.destination-region }}" \
+              "${{ github.event.inputs.source-foundry-name }}" \
+              "${{ github.event.inputs.destination-foundry-sku }}" \
+              "${{ github.event.inputs.destination-foundry-name }}" \
+              "${{ github.event.inputs.source-resource-group-name }}" \
+              "${{ github.event.inputs.destination-key-vault-name }}" \
+              "${{ github.event.inputs.destination-resource-group-name }}";
