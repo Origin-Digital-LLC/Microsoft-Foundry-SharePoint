@@ -355,6 +355,7 @@ namespace FoundrySharePointKnowledge.Common
             public const string Client = nameof(Foundry);
             public const string EncodingFormat = "float";
             public const string ModelId = "prebuilt-layout";
+            public const string WorkflowYaml = nameof(WorkflowYaml);
             public const string Scope = "https://ai.azure.com/user_impersonation";
 
             public static class Tools

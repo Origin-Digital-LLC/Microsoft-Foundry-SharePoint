@@ -24,8 +24,11 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
         #region Properties
         public string Name { get; init; }
         public string Description { get; init; }
+        public string WorkflowYaml { get; set; }
         public HashSet<string> ToolNames { get; init; }
         public AgentDefinition Definition { get; init; }
+
+        public bool IsWorkflow => !string.IsNullOrWhiteSpace(this.WorkflowYaml);
         #endregion
         #region Public Methods
         public override string ToString()

@@ -120,13 +120,13 @@ namespace FoundrySharePointKnowledge.API.Controllers
             this._logger.LogInformation($"Handling request to {nameof(this.MigrateAgents)} from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //create agent
-            string result = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
+            MigrateAgentsResponse response = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
 
             //return
-            if (string.IsNullOrWhiteSpace(result))
-                return this.Ok();
+            if (response.IsSuccessful)
+                return this.Ok(response);
             else
-                return this.BadRequest(result);
+                return this.BadRequest(response);
         }
 
         /// <summary>

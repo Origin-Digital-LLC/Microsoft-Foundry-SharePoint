@@ -9,9 +9,9 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
     public interface IFoundryService
     {
         #region Methods
-        Task<string> MigrateAgentsAsync(MigrateAgentsRequest migrateAgentsRequest, TokenCredential foundryCredential);
         Task<AgentResponse<string>> ConverseWithAgentAsync(ConversationPrompt prompt, FoundryCredential foundryCredential);
         Task<AgentResponse<EngineerBio[]>> ExecuteExpertiseFinderWorkflowAsync(string prompt, TokenCredential tokenCredential);
+        Task<MigrateAgentsResponse> MigrateAgentsAsync(MigrateAgentsRequest migrateAgentsRequest, TokenCredential foundryCredential);
         #endregion  
     }
 }
