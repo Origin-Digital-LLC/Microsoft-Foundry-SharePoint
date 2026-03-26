@@ -50,19 +50,22 @@ userReadScope="User.Read";
 apiScopeName="access_as_user";
 sitesReadAllScope="Sites.Read.All";
 selectedSitesScope="Sites.Selected";
+m365AppId="00000003-0000-0ff1-ce00-000000000000";
 apiScopeId="3e57e494-4514-4155-bb1d-6ea84a8ceB5e";
+azureCLIAppId="04b07795-8ddb-461a-bbee-02f9e1bf7b46";
 cognitiveServicesUserPermission="Cognitive Services User";
 storageBlobDataReaderPermission="Storage Blob Data Reader";
 graphAPIPermissionId="00000003-0000-0000-c000-000000000000";
 emailPermissionScopeId="64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0=Scope";
 storageBlobDataContributorPermission="Storage Blob Data Contributor";
 signInPermissionScopeId="37f7f235-527c-4136-accd-4a02d197296e=Scope";
+sharePointOnlineWebClientAppId="08e18876-6177-487e-b8b5-cf950c1e598c";
 profilePermissionScopeId="14dad69e-099b-42c9-810b-d002981feec1=Scope";
 userReadPermissionScopeId="e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope";
 storageTableDataContributorPermission="Storage Table Data Contributor";
 selectedSitesPermissionScopeId="883ea226-0bf2-4a8f-9f9d-92c9162a727d=Role";
 sitesReadAllPermissionScopeId="205e70e5-aba6-4c52-a976-6d2d46c48043=Scope";
-preAuthorizedAppIds="00000003-0000-0ff1-ce00-000000000000|08e18876-6177-487e-b8b5-cf950c1e598c";
+preAuthorizedAppIds="$m365AppId|$sharePointOnlineWebClientAppId|$azureCLIAppId";
 
 #reference utilities
 source ./deployment/utilities.sh;
