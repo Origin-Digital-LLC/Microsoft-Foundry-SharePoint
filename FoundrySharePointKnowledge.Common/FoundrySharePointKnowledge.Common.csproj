@@ -5,6 +5,6 @@
 		<TargetFramework>net10.0</TargetFramework>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Azure.Core" Version="1.51.1" />
+		<PackageReference Include="Azure.Core" Version="1.52.0" />
 	</ItemGroup>
 </Project>

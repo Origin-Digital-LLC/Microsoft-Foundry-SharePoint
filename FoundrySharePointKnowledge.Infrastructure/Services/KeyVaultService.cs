@@ -6,12 +6,12 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
 using Azure;
+using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 
 using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
-using Azure.Identity;
 
 namespace FoundrySharePointKnowledge.Infrastructure.Services
 {

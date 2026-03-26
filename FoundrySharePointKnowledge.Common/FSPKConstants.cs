@@ -152,6 +152,7 @@ namespace FoundrySharePointKnowledge.Common
         public static class Search
         {
             public const string EndpointFormat = "https://{0}.search.windows.net/";
+
             public static class Queries
             {
                 public const string Space = "%20";
