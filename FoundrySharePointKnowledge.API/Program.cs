@@ -28,11 +28,13 @@ using Azure.Security.KeyVault.Secrets;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 
 using FoundrySharePointKnowledge.Common;
+using FoundrySharePointKnowledge.API.Middleware;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Infrastructure.Services;
 
 using OpenTelemetry.Logs;
+using OpenTelemetry.Trace;
 
 namespace FoundrySharePointKnowledge.API
 {
@@ -76,8 +78,17 @@ namespace FoundrySharePointKnowledge.API
                                 options.ClientSecret = entraIDSettings.ClientSecret;
                             }).AddInMemoryTokenCaches();
 
+            //configure application insights via open telemetry
+            builder.Services.AddOpenTelemetry()
+                            .UseAzureMonitor((options) => options.ConnectionString = applicationInsightsSettings.ConnectionString)
+                            .WithTracing((options) =>
+                            {
+                                //add request body logging
+                                options.AddAspNetCoreInstrumentation();
+                                options.AddProcessor<RequestBodyTelemtryProcessor>();
+                            });
+
             //configure logging
-            builder.Services.AddOpenTelemetry().UseAzureMonitor((options) => options.ConnectionString = applicationInsightsSettings.ConnectionString);
             builder.Services.Configure<OpenTelemetryLoggerOptions>(options => options.IncludeScopes = true);
             builder.Logging.AddFilter<OpenTelemetryLoggerProvider>(level => level >= LogLevel.Information);
 

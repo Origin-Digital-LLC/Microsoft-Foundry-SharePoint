@@ -488,5 +488,11 @@ namespace FoundrySharePointKnowledge.Common
             public const string Scope = "API Access";
             public const string Name = "Foundry SharePoint Knowledge API";
         }
+
+        public static class OpenTelemetry
+        {
+            public const int MaxBodyLength = 8192;
+            public const string Tag = "http.request.body";
+        }
     }
 }
