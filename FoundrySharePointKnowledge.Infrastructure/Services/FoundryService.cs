@@ -348,8 +348,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //prepare data structures
                 List<MigratableAgent> sourceAgents = new List<MigratableAgent>();
                 Dictionary<string, string> workflows = new Dictionary<string, string>();
+                Dictionary<string, string> destinationKeyValueSecrets = new Dictionary<string, string>();
                 Dictionary<string, IToolDefintion> toolDefinitions = new Dictionary<string, IToolDefintion>();
-                //Dictionary<string, string> destinationKeyValueSecrets = await this._keyVaultService.GetAllSecretsAsync(migrateAgentsRequest.DestinationKeyVaultURL);
+
+                //check key vault url and load destination secrets if it is specified
+                if (!string.IsNullOrWhiteSpace(migrateAgentsRequest.DestinationKeyVaultURL))
+                    destinationKeyValueSecrets = await this._keyVaultService.GetAllSecretsAsync(migrateAgentsRequest.DestinationKeyVaultURL);
 
                 //get source foundry account
                 List<CognitiveServicesAccountDeploymentData> sourceModels = new List<CognitiveServicesAccountDeploymentData>();
@@ -368,10 +372,16 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     {
                         //get api key
                         AIProjectConnection projectConnection = await sourceFoundryClient.Connections.GetConnectionAsync(sourceAppInisghtsConnection.Name, true);
-                        AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
+                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString, out string sourceAppInisghtsConnectionString))
+                        {
+                            //use source connection string
+                            collectWarning($"Application Insights connection {projectConnection.Name} will use the source connection string since {FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                            AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
+                            sourceAppInisghtsConnectionString = apiCredentials.ApiKey;
+                        }
 
                         //collect app insights connections
-                        toolDefinitions.Add(sourceAppInisghtsConnection.Name, new ProjectTelemetryDefinition(apiCredentials.ApiKey, projectConnection.Target));
+                        toolDefinitions.Add(sourceAppInisghtsConnection.Name, new ProjectTelemetryDefinition(sourceAppInisghtsConnectionString, projectConnection.Target));
                     }
                 }
 
@@ -402,8 +412,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 //check tool
                                 if (!toolDefinitions.ContainsKey(projectConnection.Name))
                                 {
+                                    //get site collectoin url
+                                    if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.SharePoint.SiteCollectionURL, out string siteCollectionURL))
+                                    {
+                                        //use source sharepoint site collection url
+                                        siteCollectionURL = ((AIProjectConnectionCustomCredential)projectConnection.Credentials).Keys.Values.First();
+                                        collectWarning($"SharePoint connection {projectConnection.Name} will use the source site collection URL since {FSPKConstants.Settings.KeyVault.SharePoint.SiteCollectionURL} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                                    }
+
                                     //create sharepoint tool definition
-                                    string siteCollectionURL = ((AIProjectConnectionCustomCredential)projectConnection.Credentials).Keys.Values.First();
                                     toolDefinitions.Add(projectConnection.Name, new SharePointToolDefinition(siteCollectionURL));
                                 }
                             }
@@ -420,11 +437,19 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                     //check tool
                                     if (!toolDefinitions.ContainsKey(searchConnectionName))
                                     {
+                                        //get api key
+                                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.Search.Key, out string azureAISearchAdminKey))
+                                        {
+                                            //use source azure search admin key
+                                            collectWarning($"Azure AI Search index connection {searchConnectionName} will use the source admin key since {FSPKConstants.Settings.KeyVault.Search.Key} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                                            AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
+                                            azureAISearchAdminKey = apiCredentials.ApiKey;
+                                        }
+
                                         //create azure ai search tool definition
-                                        AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
                                         toolDefinitions.Add(searchConnectionName, new SearchToolDefinition(projectConnection.Metadata[FSPKConstants.Foundry.Tools.DisplayName],
                                                                                                            projectConnection.Metadata[FSPKConstants.Foundry.Tools.ResourceId],
-                                                                                                           apiCredentials.ApiKey,
+                                                                                                           azureAISearchAdminKey,
                                                                                                            index.IndexName,
                                                                                                            index.QueryType,
                                                                                                            index.Filter,
@@ -492,22 +517,30 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //create destination connections
                 foreach (string toolName in toolDefinitions.Keys)
                 {
-                    //create connection
-                    IToolDefintion tool = toolDefinitions[toolName];
-                    CognitiveServicesConnectionData connection = tool.CreateConnection();
-                    ArmOperation<CognitiveServicesProjectConnectionResource> connectionResult = await destinationProjectConnections.CreateOrUpdateAsync(WaitUntil.Completed, toolName, connection);
-
-                    //check result
-                    if (connectionResult.HasValue)
+                    try
                     {
-                        //success
-                        result.SuccessfulConnections.Add(toolName);
-                        this._logger.LogInformation($"Successfully created destinaton connection {toolName}.");
+                        //create connection
+                        IToolDefintion tool = toolDefinitions[toolName];
+                        CognitiveServicesConnectionData connection = tool.CreateConnection();
+                        ArmOperation<CognitiveServicesProjectConnectionResource> connectionResult = await destinationProjectConnections.CreateOrUpdateAsync(WaitUntil.Completed, toolName, connection);
+
+                        //check result
+                        if (connectionResult.HasValue)
+                        {
+                            //success
+                            result.SuccessfulConnections.Add(toolName);
+                            this._logger.LogInformation($"Successfully created destinaton connection {toolName}.");
+                        }
+                        else
+                        {
+                            //error
+                            collectError($"Unable to create destination connection {toolName}: {connectionResult.GetRawResponse().Content.ToString()}");
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
                         //error
-                        collectError($"Unable to create destination connection {toolName}: {connectionResult.GetRawResponse().Content.ToString()}");
+                        collectError($"Failed to migrate connection {toolName}.", ex);
                     }
                 }
 
@@ -543,10 +576,24 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         }
                     }
 
+                    //this marks a model deployment error as a warning if no agents are using it
+                    ArmOperation<CognitiveServicesAccountDeploymentResource> modelDeploymentResult = null;
+                    void collectModelDeploymentError(string rawError)
+                    {
+                        //initialization
+                        string error = $"Unable to create destination model {sourceModel.Name}: {rawError}";
+
+                        //return
+                        if (sourceAgents.Any(a => a.ToolNames.Contains(sourceModel.Name)))
+                            collectError(error);
+                        else
+                            collectWarning(error);
+                    }
+
                     try
                     {
                         //deploy model
-                        ArmOperation<CognitiveServicesAccountDeploymentResource> modelDeploymentResult = await destinationDeployments.CreateOrUpdateAsync(WaitUntil.Completed, sourceModel.Name, new CognitiveServicesAccountDeploymentData()
+                        modelDeploymentResult = await destinationDeployments.CreateOrUpdateAsync(WaitUntil.Completed, sourceModel.Name, new CognitiveServicesAccountDeploymentData()
                         {
                             //create model
                             Sku = sourceModel.Sku,
@@ -563,17 +610,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         else
                         {
                             //error
-                            string error = $"Unable to create destination model {sourceModel.Name}: {modelDeploymentResult.GetRawResponse().Content.ToString()}";
-                            if (sourceAgents.Any(a => a.ToolNames.Contains(sourceModel.Name)))
-                                collectError(error);
-                            else
-                                collectWarning(error);
+                            collectModelDeploymentError(modelDeploymentResult.GetRawResponse().Content.ToString());
                         }
                     }
                     catch (Exception ex)
                     {
-                        //error
-                        collectError($"Failed to deploy destination model {sourceModel.Name}.", ex);
+                        //ensure exception is  logged
+                        collectModelDeploymentError(ex.ToString());
+                        this._logger.LogError(ex, $"Failed to deploy destination model {sourceModel.Name}.");
                     }
                 }
 
@@ -610,31 +654,39 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         WorkflowAgentDefinition destinationWorkflowDefinition = WorkflowAgentDefinition.FromYaml(agent.WorkflowYaml);
                         destinationWorkflowDefinition.ContentFilterConfiguration = sourceWorkflowDefinition.ContentFilterConfiguration;
 
-                        //create workflow
-                        ClientResult<AgentVersion> workflowResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationWorkflowDefinition)
+                        try
                         {
-                            //assemble object
-                            Description = agent.Description
-                        });
+                            //create workflow
+                            ClientResult<AgentVersion> workflowResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationWorkflowDefinition)
+                            {
+                                //assemble object
+                                Description = agent.Description
+                            });
 
-                        //check result
-                        if (workflowResult?.Value == null)
+                            //check result
+                            if (workflowResult?.Value == null)
+                            {
+                                //error
+                                collectError($"Unable to create destination workflow {agent}: {workflowResult.GetRawResponse().Content.ToString()}");
+                            }
+                            else
+                            {
+                                //success
+                                result.SuccessfulWorkflows.Add(agent.Name);
+                                this._logger.LogInformation($"Successfully migrated workflow {agent}.");
+                            }
+                        }
+                        catch (Exception ex)
                         {
                             //error
-                            collectError($"Unable to create destination workflow {agent}: {workflowResult.GetRawResponse().Content.ToString()}");
-                        }
-                        else
-                        {
-                            //success
-                            result.SuccessfulWorkflows.Add(agent.Name);
-                            this._logger.LogInformation($"Successfully migrated workflow {agent}.");
+                            collectError($"Failed to migrate workflow {agent}.", ex);
                         }
                     }
                     else
                     {
                         //get agent definition
                         if (agent.Definition is PromptAgentDefinition)
-                        {                            
+                        {
                             //create agent definition
                             PromptAgentDefinition sourceAgentDefinition = (PromptAgentDefinition)agent.Definition;
                             PromptAgentDefinition destinationAgentDefinition = new PromptAgentDefinition(sourceAgentDefinition.Model);
@@ -714,24 +766,32 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 }
                             }
 
-                            //create agent
-                            ClientResult<AgentVersion> agentResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationAgentDefinition)
+                            try
                             {
-                                //assemble object
-                                Description = agent.Description
-                            });
+                                //create agent
+                                ClientResult<AgentVersion> agentResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationAgentDefinition)
+                                {
+                                    //assemble object
+                                    Description = agent.Description
+                                });
 
-                            //check result
-                            if (agentResult?.Value == null)
-                            {
-                                //eror
-                                collectError($"Unable to create destination agent {agent}: {agentResult?.GetRawResponse()?.Content?.ToString() ?? "N/A"}");
+                                //check result
+                                if (agentResult?.Value == null)
+                                {
+                                    //eror
+                                    collectError($"Unable to create destination agent {agent}: {agentResult?.GetRawResponse()?.Content?.ToString() ?? "N/A"}");
+                                }
+                                else
+                                {
+                                    //success
+                                    result.SuccessfulAgents.Add(agent.Name);
+                                    this._logger.LogInformation($"Successfully migrated agent {agent}.");
+                                }
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                //success
-                                result.SuccessfulAgents.Add(agent.Name);
-                                this._logger.LogInformation($"Successfully migrated agent {agent}.");
+                                //error
+                                collectError($"Failed to migrate agent {agent.Name}.", ex);
                             }
                         }
                     }

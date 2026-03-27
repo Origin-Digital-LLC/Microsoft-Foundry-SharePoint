@@ -137,6 +137,7 @@ namespace FoundrySharePointKnowledge.Common
                 public static class SharePoint
                 {
                     public const string WebhookSecret = "sharepoint-webhook-secret";
+                    public const string SiteCollectionURL = "sharepoint-site-collection-url";
                 }
             }
 
