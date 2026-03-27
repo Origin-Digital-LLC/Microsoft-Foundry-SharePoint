@@ -54,9 +54,9 @@ while IFS= read -r item; do
   #get each destination project
   destinationFoundryProjectName=$(echo "$item" | jq -r '.properties.displayName');
   sourceFoundryProjectEndpoint=$(echo "$item" | jq -r '.properties.endpoints."AI Foundry API"');
-  echo "***Starting Foundry project $destinationFoundryProjectName migration from $sourceFoundryName$sourceFoundryName.***";
+  echo "===Starting Foundry project $destinationFoundryProjectName migration from $sourceFoundryName$sourceFoundryName.===";
 
-  #ensure destination project (without auth)
+  #ensure destination project (without auth, as that will inherit from the parent Foundry resource)
   destinationFoundryProjectResult=$(ensure_foundry_project "$destinationResourceGroupName" "$destinationRegion" "$destinationFoundryName" "$destinationFoundryProjectName" "$destinationFoundrySKU" "");
 
   #parse foundry components
@@ -68,7 +68,7 @@ while IFS= read -r item; do
   payload='{"forceChanges":'$forceChanges',"sourceResourceGroupName":"'"$sourceResourceGroupName"'","sourceProjectEndpoint":"'"$sourceFoundryProjectEndpoint"'","destinationResourceGroupName":"'"$sourceResourceGroupName"'","destinationProjectEndpoint":"'"$destinationFoundryProjectEndpoint"'","destinationKeyVaultURL":"'"$destinationKeyVaultURL"'"}';
 
   #call API
-  response=$(curl -s -X POST "$apiEndpoint" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer $accessToken" -d "$payload" -w " (%{http_code})");
+  response=$(curl -s -X POST "$apiEndpoint" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer $accessToken" -d "$payload" -w " (API response code: %{http_code})");
   response="$response" | jq '.';
 
   #print result
@@ -76,4 +76,4 @@ while IFS= read -r item; do
 done < <(echo "$sourceFoundryProjects" | jq -c '.[]');
 
 #return
-echo "Completed Foundry $resourceGroupName agent promotion successfully.";
+echo "Completed Foundry $destinationFoundryName agent promotion successfully.";
