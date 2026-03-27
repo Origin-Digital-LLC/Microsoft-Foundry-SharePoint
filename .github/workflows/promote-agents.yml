@@ -9,7 +9,7 @@ on:
         default: <your-auth-app-id>
         description: The app id of the Entra app registration used for authentication.
       api-endpoint:
-        default: https://<your-api-url>/Foundry/migrate-agents
+        default: https://<your-api-url>/Foundry/promote-foundry-agents
         required: true
         description: The absolute URL to the deployment API endpoint.
       force-changes:
