@@ -261,10 +261,10 @@ storageAccountIdResult=$(ensure_key_vault_secret "$keyVaultName" "storage-accoun
 storageAccountConnectionStringResult=$(ensure_key_vault_secret "$keyVaultName" "storage-account-connection-string" "$storageAccountConnectionString");
 
 #ensure foundry secrets
-foundryllmModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-model" "$llmModel");
+foundryLLMModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-model" "$llmModel");
 foundryImageModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-model" "$imageModel");
-foundryllmVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-version" "$llmVersion");
-foundryllmCapacityResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-capacity" "$llmCapacity");
+foundryLLMVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-version" "$llmVersion");
+foundryLLMCapacityResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-capacity" "$llmCapacity");
 foundryImageVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-version" "$imageVersion");
 foundryAccountKeyResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-account-key" "$foundryAccountKey");
 foundryAPIVersionlResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-api-version" "$foundryAPIVersion");
