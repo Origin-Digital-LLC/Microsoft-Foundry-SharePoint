@@ -903,7 +903,7 @@ function wait_for_az_rest_command()
 	echo "0";
 }
 
-#Creates an Azure Search instance if one doesn't already exist. [Returns: queryKey|adminKey|principalId]
+#Creates an Azure Search instance if one doesn't already exist. [Returns: queryKey|adminKey|principalId|resourceId]
 function ensure_azure_search()
 {
 	#initialization
@@ -944,7 +944,8 @@ function ensure_azure_search()
 	local principalId=$(az search service update --resource-group "$resourceGroupName" --name "$name" --identity-type "SystemAssigned" --query "identity.principalId" --output "tsv");
 
  	#return
-  	echo "$queryKey|$adminKey|$principalId";
+	local resourceId=$(az search service show --resource-group "$resourceGroupName" --name "$name" --query "id" --output "tsv");
+  	echo "$queryKey|$adminKey|$principalId|$resourceId";
 }
 
 #Creates an Azure App Service Plan if one doesn't already exist. [Returns: Nothing]
