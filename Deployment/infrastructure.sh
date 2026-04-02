@@ -220,6 +220,7 @@ searchProvisioningResult=$(ensure_azure_search "$resourceGroupName" "$secondaryR
 #parse search components
 searchComponents=(${searchProvisioningResult//|/ });
 searchPrincipalId=${searchComponents[2]};
+searchResourceId=${searchComponents[3]};
 searchAdminKey=${searchComponents[1]};
 searchQueryKey=${searchComponents[0]};
 
@@ -283,6 +284,7 @@ appInsightsInstramentationKeyResult=$(ensure_key_vault_secret "$keyVaultName" "a
 #ensure search secrets
 searchQueryKeyResult=$(ensure_key_vault_secret "$keyVaultName" "search-query-key" "$searchQueryKey");
 searchAdminKeyResult=$(ensure_key_vault_secret "$keyVaultName" "search-admin-key" "$searchAdminKey");
+searchResourceIdResult=$(ensure_key_vault_secret "$keyVaultName" "search-resource-id" "$searchResourceId");
 searchAPIURLResult=$(ensure_key_vault_secret "$keyVaultName" "search-api-url"  "https://$searchName.search.windows.net");
 
 #return
