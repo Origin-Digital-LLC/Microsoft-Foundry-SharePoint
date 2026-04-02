@@ -62,7 +62,11 @@ on:
       #llm-version:
       #  required: true
       #  default: "2025-04-14"
-      #  description: The LLM Azure Foundry API version.      
+      #  description: The LLM Azure Foundry API version.
+      #llm-format:
+      #  required: true
+      #  default: "OpenAI"
+      #  description: The LLM provider.
       #embedding-model:
       #  required: true
       #  default: "text-embedding-3-small"
@@ -75,6 +79,10 @@ on:
       #  required: true
       #  default: "1"
       #  description: The text embeddings Azure Foundry API version.
+      #embedding-format:
+      #  required: true
+      #  default: "OpenAI"
+      #  description: The text embeddings provider.
       #image-model:
       #  required: true
       #  default: "embed-v-4-0"
@@ -87,6 +95,10 @@ on:
       #  required: true
       #  default: "1"
       #  description: The image embeddings Azure Foundry API version.
+      #image-format:
+      #  required: true
+      #  default: "Cohere"
+      #  description: The image embeddings provider.
 env:
   SCRIPT_FILE_NAME: infrastructure.sh
   INFRASTRUCTURE_WORKING_DIRECTORY: deployment
@@ -137,9 +149,12 @@ jobs:
               #"${{ github.event.inputs.llm-model }}" \
               #"${{ github.event.inputs.llm-capacity }}" \
               #"${{ github.event.inputs.llm-version }}" \
+              #"${{ github.event.inputs.llm-format }}" \
               #"${{ github.event.inputs.embedding-model }}" \
               #"${{ github.event.inputs.embedding-capacity }}" \
               #"${{ github.event.inputs.embedding-version }}" \
+              #"${{ github.event.inputs.embedding-format }}" \
               #"${{ github.event.inputs.image-model }}" \
               #"${{ github.event.inputs.image-capacity }}" \
-              #"${{ github.event.inputs.image-version }}";
+              #"${{ github.event.inputs.image-version }}" \
+              #"${{ github.event.inputs.image-format }}";
