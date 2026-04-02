@@ -80,7 +80,7 @@ on:
       #  default: "embed-v-4-0"
       #  description: The type of image embeddings AI model to use.      
       #image-capacity:
-      #  default: "5"
+      #  default: "4"
       #  required: true
       #  description: The image embeddings capacity (in units of 100,000 tokens per minute).      
       #image-version:
