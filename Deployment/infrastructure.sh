@@ -261,14 +261,14 @@ storageAccountIdResult=$(ensure_key_vault_secret "$keyVaultName" "storage-accoun
 storageAccountConnectionStringResult=$(ensure_key_vault_secret "$keyVaultName" "storage-account-connection-string" "$storageAccountConnectionString");
 
 #ensure foundry secrets
-imageModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-model" "$imageModel");
 foundryllmModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-model" "$llmModel");
-imageModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-version" "$imageVersion");
+foundryImageModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-model" "$imageModel");
 foundryllmVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-version" "$llmVersion");
-imageCapacityResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-capacity" "$imageCapacity");
 foundryllmCapacityResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-llm-capacity" "$llmCapacity");
+foundryImageVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-version" "$imageVersion");
 foundryAccountKeyResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-account-key" "$foundryAccountKey");
 foundryAPIVersionlResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-api-version" "$foundryAPIVersion");
+foundryImageCapacityResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-image-capacity" "$imageCapacity");
 foundryEmbeddingModelResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-embedding-model" "$embeddingModel");
 foundryEmbeddingVersionResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-embedding-version" "$embeddingVersion");
 foundryOpenAIEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-open-ai-endpoint" "$foundryOpenAIEndpoint");
