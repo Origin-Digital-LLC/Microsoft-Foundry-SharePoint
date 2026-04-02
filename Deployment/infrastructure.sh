@@ -15,30 +15,30 @@ sharepointWebhookSecret="${11}";
 deploymentEnterpriseAppObjectId="$3";
 
 #these values should also be inputs, but github only allows 10 parameters :(
+imageVersion="1";
+llmCapacity="501";
+imageCapacity="4";
+llmFormat="OpenAI";
+llmModel="gpt-4.1";
+embeddingVersion="2";
+imageFormat="Cohere";
 searchSKU="standard";
 keyVaultSKU="standard";
+llmVersion="2025-04-14";
+embeddingCapacity="511";
 appServicePlankSKU="B1";
 storageKind="StorageV2";
+imageModel="embed-v-4-0";
+embeddingFormat="OpenAI";
 storageSKU="Standard_LRS";
+dotNetCoreRuntime="dotnet:10";
 timezone="Central Standard Time";
 foundryProjectName="fspk-agent-pool";
+foundryAPIVersion="2024-05-01-preview";
+embeddingModel="text-embedding-3-small";
 
 #infrastructure constants
 authCallback="";
-imageVersion="1";
-llmCapacity="501";
-imageCapacity="5";
-llmModel="gpt-4.1";
-llmFormat="OpenAI";
-imageFormat="Cohere";
-embeddingVersion="2";
-llmVersion="2025-04-14";
-embeddingCapacity="511";
-imageModel="embed-v-4-0";
-embeddingFormat="OpenAI";
-dotNetCoreRuntime="dotnet:10";
-foundryAPIVersion="2024-05-01-preview";
-embeddingModel="text-embedding-3-small";
 swaggerCallback="/swagger/oauth2-redirect.html";
 resourceGroupName="$resourceGroupName-$environmentNormalized";
 
