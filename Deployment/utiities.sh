@@ -885,6 +885,23 @@ function ensure_rbac_access()
 	echo "Granted $roleName access for $principalId to $resourceId successfully." >&2;
 }
 
+#Posts to a custom API endpoint. [Returns: response]
+function post_to_api()
+{
+	#initialization
+	local url=$1;
+	local payload=$2;
+	local accessToken=$3;	
+
+	#call api
+	echo "Calling API endpoint $url." >&2;
+	response=$(curl -s -X POST "$url" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer $accessToken" -d "$payload" -w " (API response code: %{http_code})");
+
+	#return
+  	response="$response" | jq '.';
+	echo "$response";
+}
+
 #Polls the given resource's provisioning status. [Returns: 0 (Succeeded) or 1 (Failed)]
 function wait_for_az_rest_command()
 {
