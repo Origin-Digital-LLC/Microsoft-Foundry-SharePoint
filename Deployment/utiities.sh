@@ -793,7 +793,7 @@ function expose_entra_id_app_scope()
 
 	#check preauthorized apps
 	if [ -z "$rawPreAuthorizedAppIds" ]; then
-		echo "Skipping preauthorized apps for $appId.";
+		echo "Skipping preauthorized apps for $appId." >&2;
 	else
 		#create preauthorized client apps JSON template (since we can't pass arrays to functons in other scripts)
 		local preAuthorizedAppsJSON="";
@@ -812,7 +812,7 @@ function expose_entra_id_app_scope()
 		#now that the permissions scopes have been, update the app registration with the full API configuration JSON
 		local fullJSON='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,'$oauth2PermissionScopesJSON'}';
 		local appScope=$(az ad app update --id $appId --set "api=$fullJSON");
-		echo "Configured preauthorized apps for $appId successfully.";
+		echo "Configured preauthorized apps for $appId successfully." >&2;
 	fi
 
 	#return
