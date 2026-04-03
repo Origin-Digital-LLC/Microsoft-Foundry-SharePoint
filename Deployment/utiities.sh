@@ -782,27 +782,38 @@ function expose_entra_id_app_scope()
 	local rawPreAuthorizedAppIds=$5;
 	echo "Ensuring scope $name on Entra Id app $appId." >&2;
 
-	#create application uri
+	#ensure application uri
 	local uri="api://$appId";
 	local appURI=$(az ad app update --id $appId --identifier-uris $uri);
 
-	#create preauthorized client apps JSON template (since we can't pass arrays to functons in other scripts)
-	local preAuthorizedAppsJSON="";
-	local preAuthorizedAppIds=(${rawPreAuthorizedAppIds//|/ });
+	#ensure permission scopes first (which will reset the rest of the API configuration JSON)
+	local oauth2PermissionScopesJSON='"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]';
+	local oauth2PermissionScopes=$(az ad app update --id $appId --set "api={$oauth2PermissionScopesJSON}");
+	sleep 5;
 
-	#populate preauthorized client app ids JSON
-	for p in "${!preAuthorizedAppIds[@]}"; do
-	    local preAuthorizedApp='{"appId":"'"${preAuthorizedAppIds[$p]}"'","delegatedPermissionIds": ["'"$id"'"]}';
-	    if [ "$p" -eq 0 ]; then
-	        preAuthorizedAppIdsJSON="$preAuthorizedApp";
-	    else
-	        preAuthorizedAppIdsJSON="$preAuthorizedAppIdsJSON,$preAuthorizedApp";
-	    fi
-	done
-
-	#update app
-	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
-	local appScope=$(az ad app update --id $appId --set "api=$json");
+	#check preauthorized apps
+	if [ -z "$rawPreAuthorizedAppIds" ]; then
+		echo "Skipping preauthorized apps for $appId.";
+	else
+		#create preauthorized client apps JSON template (since we can't pass arrays to functons in other scripts)
+		local preAuthorizedAppsJSON="";
+		local preAuthorizedAppIds=(${rawPreAuthorizedAppIds//|/ });
+	
+		#populate preauthorized client app ids JSON
+		for p in "${!preAuthorizedAppIds[@]}"; do
+		    local preAuthorizedApp='{"appId":"'"${preAuthorizedAppIds[$p]}"'","delegatedPermissionIds": ["'"$id"'"]}';
+		    if [ "$p" -eq 0 ]; then
+		        preAuthorizedAppIdsJSON="$preAuthorizedApp";
+		    else
+		        preAuthorizedAppIdsJSON="$preAuthorizedAppIdsJSON,$preAuthorizedApp";
+		    fi
+		done
+	
+		#now that the permissions scopes have been, update the app registration with the full API configuration JSON
+		local fullJSON='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,'$oauth2PermissionScopesJSON'}';
+		local appScope=$(az ad app update --id $appId --set "api=$fullJSON");
+		echo "Configured preauthorized apps for $appId successfully.";
+	fi
 
 	#return
 	echo "Exposed scope $name on Entra Id app $appId successfully." >&2;
