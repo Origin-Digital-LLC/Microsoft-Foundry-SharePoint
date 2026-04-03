@@ -902,6 +902,22 @@ function post_to_api()
 	echo "$response";
 }
 
+#Puts to a custom API endpoint without a body. [Returns: response]
+function put_to_api()
+{
+	#initialization
+	local url=$1;
+	local accessToken=$2;	
+
+	#call api
+	echo "Issuing a PUT request to API endpoint $url." >&2;
+	response=$(curl -s -X PUT "$url" -H "Content-Type: application/json" -H "Authorization: Bearer $accessToken" -w " (API response code: %{http_code})");
+
+	#return
+  	response="$response" | jq '.';
+	echo "$response";
+}
+
 #Polls the given resource's provisioning status. [Returns: 0 (Succeeded) or 1 (Failed)]
 function wait_for_az_rest_command()
 {
