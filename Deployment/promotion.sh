@@ -66,8 +66,7 @@ while IFS= read -r item; do
   payload='{"forceChanges":'$forceChanges',"sourceResourceGroupName":"'"$sourceResourceGroupName"'","sourceProjectEndpoint":"'"$sourceFoundryProjectEndpoint"'","destinationResourceGroupName":"'"$sourceResourceGroupName"'","destinationProjectEndpoint":"'"$destinationFoundryProjectEndpoint"'","destinationKeyVaultURL":"'"$destinationKeyVaultURL"'"}';
 
   #call API
-  response=$(curl -s -X POST "$apiEndpoint" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer $accessToken" -d "$payload" -w " (API response code: %{http_code})");
-  response="$response" | jq '.';
+  response=$(post_to_api "$apiEndpoint" "$payload" "$accessToken");
 
   #print result
   echo "$destinationFoundryProjectName migration result: $response";
