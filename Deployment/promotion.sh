@@ -19,9 +19,7 @@ source ./deployment/utilities.sh;
 echo "Starting Foundry agent promotion from $sourceFoundryName to $destinationFoundryName.";
 
 #get api access token
-apiScope="api://$authAppId/.default";
-echo "Acquiring access token for $apiScope.";
-accessToken=$(az account get-access-token --scope $apiScope --query "accessToken" --output "tsv");
+accessToken=$(acquire_access_token "$authAppId");
 
 #ensure destination foundry instance (without projects)
 authEnterpriseAppObjectId=$(get_app_registration_enterprise_object_id "$authAppId");
