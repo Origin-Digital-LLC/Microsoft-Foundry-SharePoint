@@ -842,17 +842,19 @@ function assign_entra_id_app_permission()
 	fi
 }
 
-#Grants a service principal access to an Azure source under the given role. [Returns nothing]
-function ensure_rbac_access()
+#Gets an access token from the given Entra Id app registration. [Returns: token]
+function acquire_access_token()
 {
 	#initialization
-	local roleName=$3;
-	local resourceId=$2;
-	local principalId=$1;
+	local appId=$1;
 	
+	#get token
+	apiScope="api://$appId/.default";
+	echo "Acquiring access token for $apiScope." >&2;
+	accessToken=$(az account get-access-token --scope $apiScope --query "accessToken" --output "tsv");
+
 	#return
-	local role=$(az role assignment create --assignee "$principalId" --scope "$resourceId" --role "$roleName");
-	echo "Granted $roleName access for $principalId to $resourceId successfully." >&2;
+	echo "$accessToken";
 }
 
 #Creates an Entra ID app and client secret to use for GitHub actions that deploy an Azure web app. If the app already exists, the client secret is overwritten. [Returns: Nothing, but outputs the credentials to the screen.]
@@ -868,6 +870,19 @@ function get_web_app_deployment_credential()
 	local credentials=$(az ad sp create-for-rbac --name "$webAppName" --role "$role" --scopes "$webAppScope" --years "2" --output "json");
 	echo "Deployment credentials for web app $webAppName generated successfully:" >&2;
 	echo $credentials >&2;
+}
+
+#Grants a service principal access to an Azure source under the given role. [Returns nothing]
+function ensure_rbac_access()
+{
+	#initialization
+	local roleName=$3;
+	local resourceId=$2;
+	local principalId=$1;
+	
+	#return
+	local role=$(az role assignment create --assignee "$principalId" --scope "$resourceId" --role "$roleName");
+	echo "Granted $roleName access for $principalId to $resourceId successfully." >&2;
 }
 
 #Polls the given resource's provisioning status. [Returns: 0 (Succeeded) or 1 (Failed)]
