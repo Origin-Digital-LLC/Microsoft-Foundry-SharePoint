@@ -508,7 +508,7 @@ function ensure_foundry_project()
 		$(ensure_rbac_access "$principalId" "$scope" "$contributorRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesUserRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesContributorRoleId");
-		echo "Granted principal $principalId Foundry roles successfully." >&2;
+		echo "Granted the given principal $principalId Foundry security roles successfully." >&2;
 	fi
   	
  	#get foundry metadata
