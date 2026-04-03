@@ -188,12 +188,12 @@ authEnterpriseAppObjectId=$(get_app_registration_enterprise_object_id "$authClie
 authAppAccessPolicyResult=$(ensure_key_vault_user_access_policy "$keyVaultName" "$authEnterpriseAppObjectId");
 
 #ensure entra id auth app permissions
-emailPermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$emailPermissionScopeId" "$emailScope");
-profilePermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$profilePermissionScopeId" "$profileScope");
-userReadPermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$userReadPermissionScopeId" "$userReadScope");
-signInPermissionPermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$signInPermissionScopeId" "$signInScope");
-sitesReadAllPermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$sitesReadAllPermissionScopeId" "$sitesReadAllScope");
-selectedSitesPermission=$(assign_app_permission "$authClientId" "$graphAPIPermissionId" "$selectedSitesPermissionScopeId" "$selectedSitesScope");
+emailPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$emailPermissionScopeId" "$emailScope");
+profilePermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$profilePermissionScopeId" "$profileScope");
+userReadPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$userReadPermissionScopeId" "$userReadScope");
+signInPermissionPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$signInPermissionScopeId" "$signInScope");
+sitesReadAllPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$sitesReadAllPermissionScopeId" "$sitesReadAllScope");
+selectedSitesPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$selectedSitesPermissionScopeId" "$selectedSitesScope");
 
 #ensure foundry
 foundryName="$resourceGroupName-foundry01";
