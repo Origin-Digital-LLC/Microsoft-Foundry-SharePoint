@@ -462,11 +462,11 @@ function ensure_foundry_project()
 	local cognitiveServicesContributorRoleId="25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68";
 
   	#check existing foundry portal
-   	echo "Ensuring foundry portal $name." >&2;
+   	echo "Ensuring Foundry portal $name." >&2;
 	local foundry=$(az cognitiveservices account list --resource-group $resourceGroupName --query "[?name == '$name']" --output "tsv");
 	if [ -z "$foundry" ]; then
 		#create foundry portal
-		echo "Creating foundry portal $name." >&2;
+		echo "Creating Foundry portal $name." >&2;
   		local foundryId=$(az cognitiveservices account create --resource-group $resourceGroupName --name $name --location $region --custom-domain $name --kind "AIServices" --sku $sku --query "id" --output "tsv" --assign-identity --yes);
 		echo "Foundry portal $name created successfully." >&2;		 
 	else
@@ -480,11 +480,11 @@ function ensure_foundry_project()
 		echo "Skipping project creation for Foundry $name." >&2;
 	else
 		#check existing foundry project
-	   	echo "Ensuring foundry project $projectName." >&2;
+	   	echo "Ensuring Foundry project $projectName." >&2;
 		local project=$(az cognitiveservices account project list --resource-group $resourceGroupName --name $name --query "[?name == '$name/$projectName']" --output "tsv");
 		if [ -z "$project" ]; then
 		 	#create foundry project
-		   	echo "Creating foundry project $projectName." >&2;
+		   	echo "Creating Foundry project $projectName." >&2;
 			local projectId=$(az cognitiveservices account project create --resource-group $resourceGroupName --name $name --project-name $projectName --display-name $projectName --location $region --description "This is the $projectName agent pool." --query "id" --output "tsv" --assign-identity);
 		 	echo "Foundry project $projectName created successfully." >&2;
 		else
@@ -496,10 +496,10 @@ function ensure_foundry_project()
  	#assign foundry permissions to the given principal (if provided)
   	if [ -z "$principalId" ]; then
    		#no principal provided
-		echo "No principal id was provided to receive foundry roles." >&2;
+		echo "No principal id was provided to receive Foundry roles." >&2;
    	else
 		#get foundry's scope (id)
-		echo "Granting principal $principalId foundry roles." >&2;
+		echo "Granting principal $principalId Foundry roles." >&2;
 		local scope=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
 
 		#add the principal to the roles
@@ -508,7 +508,7 @@ function ensure_foundry_project()
 		$(ensure_rbac_access "$principalId" "$scope" "$contributorRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesUserRoleId");
 		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesContributorRoleId");
-		echo "Granted principal $principalId foundry roles successfully." >&2;
+		echo "Granted principal $principalId Foundry roles successfully." >&2;
 	fi
   	
  	#get foundry metadata
