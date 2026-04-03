@@ -771,7 +771,7 @@ function ensure_entra_id_app_registration()
 	echo "$clientId|$clientSecret";
 }
 
-#Ensures a scope on an app. [Returns: Nothing]
+#Ensures a scope on an Entra Id app registration. [Returns: Nothing]
 function expose_entra_id_app_scope()
 {
 	#initialization
@@ -808,8 +808,8 @@ function expose_entra_id_app_scope()
 	echo "Exposed scope $name on Entra Id app $appId successfully." >&2;
 }
 
-#Grants and admin consents a permission to an app if it doesn't already exist. [Returns: Nothing]
-function assign_app_permission()
+#Grants and admin consents a permission to an entra id app registration if it doesn't already exist. [Returns: Nothing]
+function assign_entra_id_app_permission()
 {
 	#initialization
  	local appId=$1;
