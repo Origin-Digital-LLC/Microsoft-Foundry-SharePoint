@@ -16,7 +16,7 @@ on:
       resource-group-name-prefix:
         required: true
         default: <your azure resource group prefix>
-        description: The prefix for all Azure resource group names.
+        description: The prefix for all Azure resource names.
       deployment-entra-enterprise-app-object-id:
         required: true
         default: <your entra id infrastructure app object id>
