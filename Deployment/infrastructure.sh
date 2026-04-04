@@ -139,11 +139,9 @@ apiPrincipalId=${apiComponents[0]};
 apiURL=${apiComponents[1]};
 
 #build api app cors rules
-apiCORSOrigins="[\"$webURL\", \"https://make.powerautomate.com\"";
+apiCORSOrigins="$webURL,https://make.powerautomate.com";
 if [ ! -z "$localhostURL" ]; then
-    apiCORSOrigins="$apiCORSOrigins, \"$localhostURL\"]";
-else
-    apiCORSOrigins="$apiCORSOrigins]";
+    apiCORSOrigins="$apiCORSOrigins,$localhostURL";
 fi 
 
 #configure api app
