@@ -1109,8 +1109,8 @@ function ensure_web_app()
 	echo "$principalId|https://$url";
 }
 
-#Sets the CORS rules for a websie. [Returns: nothing]
-function ensure_web_app_cors()
+#Sets the Azure CORS rules for a web app. [Returns: nothing]
+function ensure_web_app_cors_azure()
 {
 	#initialization
 	local name=$2;
@@ -1119,18 +1119,39 @@ function ensure_web_app_cors()
 	local supportCredentials=$4;
 	
 	#check credentials
-	echo "Configuring CORS for $name." >&2; 
+	echo "Configuring Azure CORS for $name." >&2; 
 	if [ "$supportCredentials" != "true" ]; then
 		supportCredentials="false";
 	fi
 
 	#set credentials
 	local corsCredentialsResult=$(az resource update --resource-group $resourceGroupName --name "web" --namespace "Microsoft.Web" --resource-type "config" --parent "sites/$name" --set "properties.cors.supportCredentials=$supportCredentials");
-	echo "Set CORS allowed credentials to $supportCredentials for $name." >&2; 
+	echo "Set Azure CORS allowed credentials to $supportCredentials for $name." >&2; 
 
 	#return
 	local corsOriginsResult=$(az webapp cors add --resource-group $resourceGroupName --name $name --allowed-origins $origins);
-	echo "Set CORS allowed origins to $origins for $name." >&2; 
+	echo "Set Azure CORS allowed origins to $origins for $name." >&2; 
+}
+
+#Sets the ASP.NET Core CORS rules for a web app. [Returns: nothing]
+function ensure_web_app_cors_dotnet()
+{
+	#initialization
+	local name=$2;
+	local origins=$3;
+	local resourceGroupName=$1;
+	echo "Configuring ASP.NET Core CORS for $name." >&2; 
+
+	#clear azure CORS rules
+	local corsCredentialsResult=$(az resource update --resource-group $resourceGroupName --name "web" --namespace "Microsoft.Web" --resource-type "config" --parent "sites/$name" --set "properties.cors.supportCredentials=false");
+	local corsOriginsResult=$(az webapp cors remove --resource-group $resourceGroupName --name $name --allowed-origins);
+	echo "Cleared Azure CORS rules for $name." >&2; 
+
+	#add cores JSON as an environment variable
+	appServiceSettingResult=$(az webapp config appsettings set --resource-group $resourceGroupName --name $name --settings "CORS_ALLOWED_ORIGINS=$origins");
+
+	#return
+	echo "Set ASP.NET Core CORS allowed origins to $origins for $name." >&2; 
 }
 
 #Creates an Azure Static Web App if one doesn't already exist. [Returns: principalId|url]
