@@ -809,7 +809,7 @@ function expose_entra_id_app_scope()
 		    fi
 		done
 	
-		#now that the permissions scopes have been, update the app registration with the full API configuration JSON
+		#now that the permissions scopes have been set, update the app registration with the full API configuration JSON
 		local fullJSON='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,'$oauth2PermissionScopesJSON'}';
 		local appScope=$(az ad app update --id $appId --set "api=$fullJSON");
 		echo "Configured preauthorized apps for $appId successfully." >&2;
