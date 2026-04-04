@@ -139,17 +139,16 @@ apiPrincipalId=${apiComponents[0]};
 apiURL=${apiComponents[1]};
 
 #build api app cors rules
-apiCORSOrigins=$webURL;
+apiCORSOrigins="[\"$webURL\", \"https://make.powerautomate.com\"";
 if [ ! -z "$localhostURL" ]; then
-    apiCORSOrigins="$apiCORSOrigins $localhostURL";
+    apiCORSOrigins="$apiCORSOrigins, \"$localhostURL\"]";
+else
+    apiCORSOrigins="$apiCORSOrigins]";
 fi 
-
-#allow power automate flows
-apiCORSOrigins="$apiCORSOrigins https://make.powerautomate.com";
 
 #configure api app
 sleep 5;
-apiCORSResult=$(ensure_web_app_cors "$resourceGroupName" "$apiName" "$apiCORSOrigins" "true");
+apiCORSResult=$(ensure_web_app_cors_dotnet "$resourceGroupName" "$apiName" "$apiCORSOrigins");
 staticWebAppStorageRBACBlobDataReader=$(ensure_rbac_access "$apiPrincipalId" "$storageAccountId" "$storageBlobDataReaderPermission");
 staticWebAppStorageRBACBlobDataContributor=$(ensure_rbac_access "$apiPrincipalId" "$storageAccountId" "$storageBlobDataContributorPermission");
 
