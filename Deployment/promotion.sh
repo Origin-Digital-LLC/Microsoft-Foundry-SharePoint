@@ -18,8 +18,9 @@ destinationFoundryName="$destinationResourceGroupName-$destinationFoundryName";
 source ./deployment/utilities.sh;
 echo "Starting Foundry agent promotion from $sourceFoundryName to $destinationFoundryName.";
 
-#get api access token
+#get api access token and ensure the source app has access to the destination foundry instance (no provisioning)
 accessToken=$(acquire_access_token "$authAppId");
+sourceFoundryPortalResult=$(ensure_foundry_project "$sourceResourceGroupName" "" "$sourceFoundryName" "" "" "$authAppId");
 
 #ensure destination foundry instance (without projects)
 authEnterpriseAppObjectId=$(get_app_registration_enterprise_object_id "$authAppId");
@@ -47,7 +48,10 @@ else
 fi
 
 #get sources foundry instance's projects
+destinationFoundryProjectEndpoints="";
 sourceFoundryProjects=$(az cognitiveservices account project list --resource-group $sourceResourceGroupName --name $sourceFoundryName);
+
+#migrate projects
 while IFS= read -r item; do
   #get each destination project
   destinationFoundryProjectName=$(echo "$item" | jq -r '.properties.displayName');
@@ -57,20 +61,25 @@ while IFS= read -r item; do
   #ensure destination project (without auth, as that will inherit from the parent Foundry resource)
   destinationFoundryProjectResult=$(ensure_foundry_project "$destinationResourceGroupName" "$destinationRegion" "$destinationFoundryName" "$destinationFoundryProjectName" "$destinationFoundrySKU" "");
 
-  #parse foundry components
+  #parse desination project components
   destinationFoundryComponents=(${destinationFoundryProjectResult//|/ });
   destinationFoundryProjectEndpoint=${destinationFoundryComponents[3]};
   
-  #build migration payload
-  echo "Migrating to $destinationFoundryProjectName via $apiEndpoint.";
-  payload='{"forceChanges":'$forceChanges',"sourceResourceGroupName":"'"$sourceResourceGroupName"'","sourceProjectEndpoint":"'"$sourceFoundryProjectEndpoint"'","destinationResourceGroupName":"'"$sourceResourceGroupName"'","destinationProjectEndpoint":"'"$destinationFoundryProjectEndpoint"'","destinationKeyVaultURL":"'"$destinationKeyVaultURL"'"}';
-
-  #call API
+  #build migration payload and call API
+  payload='{"forceChanges":'$forceChanges',"sourceResourceGroupName":"'"$sourceResourceGroupName"'","sourceProjectEndpoint":"'"$sourceFoundryProjectEndpoint"'","destinationResourceGroupName":"'"$destinationResourceGroupName"'","destinationProjectEndpoint":"'"$destinationFoundryProjectEndpoint"'","destinationKeyVaultURL":"'"$destinationKeyVaultURL"'"}';
   response=$(post_to_api "$apiEndpoint" "$payload" "$accessToken");
-
-  #print result
+  
+  #collect destination project endpoints
   echo "$destinationFoundryProjectName migration result: $response";
+  destinationFoundryProjectEndpoints="$destinationFoundryProjectEndpoints$destinationFoundryProjectEndpoint,";
 done < <(echo "$sourceFoundryProjects" | jq -c '.[]');
+
+#check  destination foundry project endpoints
+if [ ! -z "$destinationKeyVaultName" ] && [ ! -z "$destinationFoundryProjectEndpoints" ]; then
+  #update destination foundry project endpoints in key vault
+  destinationFoundryProjectEndpoints="${destinationFoundryProjectEndpoints%,}";
+  destinationFoundryProjectEndpointsResult=$(ensure_key_vault_secret "$destinationKeyVaultName" "foundry-project-endpoint" "$destinationFoundryProjectEndpoints");
+fi
 
 #return
 echo "Completed Foundry $destinationFoundryName agent promotion successfully.";
