@@ -99,6 +99,7 @@ namespace FoundrySharePointKnowledge.Common
                     public const string APIURL = "api-url";
                     public const string URL = "search-api-url";
                     public const string Key = "search-admin-key";
+                    public const string ResourceId = "search-resource-id";
                     public const string StorageAccountResourceId = "storage-account-resource-id";
                 }
 
@@ -169,6 +170,7 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string Foundry = "sharepoint-foundry";
                 public const string Images = "sharepoint-foundry-images";
+                public const string ListIems = "sharepoint-foundry-list-items";
                 public const string Vectorized = "sharepoint-foundry-vectorized";
             }
 
@@ -339,6 +341,7 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class Blobs
             {
+                public const int Parallelism = 8;
                 public const string ImageContainer = "extracted-images";
                 public const string SourceContainer = "sharepoint-ingestion";
             }
@@ -346,6 +349,7 @@ namespace FoundrySharePointKnowledge.Common
             public static class Tables
             {
                 public const int BatchSize = 100;
+                public const string URL = nameof(URL);
                 public const string SharePointListItems = nameof(SharePointListItems);
                 public const string SharePointDeltaTokens = nameof(SharePointDeltaTokens);
                 public const string ExtractedImageMetadata = nameof(ExtractedImageMetadata);
@@ -437,12 +441,14 @@ namespace FoundrySharePointKnowledge.Common
                 public const string SyncListItem = "sync-list-item";
                 public const string SearchQuery = "search/{query?}";
                 public const string DeployVectorized = "vectorized";
-                public const string MigrateAgents = "migrate-agents";
                 public const string VectorizeImage = "vectorize-image";
-                public const string DeployFoundry = "sharepoint-foundry";
+                public const string DeploySharePointDocuments = "sharepoint-foundry";
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
+                public const string PromoteFoundryAgents = "promote-foundry-agents";
+                public const string MigrateCopilotAgents = "migrate-copilot-agents";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
+                public const string DeploySharePointListItems = "sharepoint-foundry-list-items";
             }
 
             public static class Foundry
@@ -462,6 +468,7 @@ namespace FoundrySharePointKnowledge.Common
         {
             public const string Post = "POST";
             public const string SubDomainFormat = "{0}://{1}";
+            public const string WWWAuthenticate = "www-authenticate";
             public const string Base64URL = "data:image/jpeg;base64,";
         }
 

@@ -177,9 +177,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //upsert list item entities
                 this._logger.LogInformation($"Persisting {listItemEntitiesToUpsert.Count} SharePoint list items.");
-                foreach (IGrouping<string, SPListItemTableEntity> group in listItemEntitiesToUpsert.GroupBy(e => e.PartitionKey))
-                    foreach (SPListItemTableEntity[] batch in group.Chunk(FSPKConstants.AzureStorage.Tables.BatchSize))
-                        await listItemEntities.SubmitTransactionAsync(batch.Select(e => new TableTransactionAction(TableTransactionActionType.UpsertReplace, e)));
+                await listItemEntities.PerformBulkTableTansactionAsync(listItemEntitiesToUpsert);
 
                 //return
                 this._logger.LogInformation($"Processed {listItemEntitiesToUpsert.Count} SharePoint list items.");
@@ -281,7 +279,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         {
             //initialization
             Uri uri = new Uri(siteURL);
-            string[] uriParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            string[] uriParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             //build the URL form of the site id graph expects
             string managedPath = uriParts[0];
@@ -291,7 +289,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
             //convert site URL to site id
             Site site = await this._graphClient.Sites[siteCollectionPath].GetAsync();
-            return Guid.Parse(site.Id.Split(',')[1]).ToString();
+            return Guid.Parse(site.Id.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[1]).ToString();
         }
 
         /// <summary>

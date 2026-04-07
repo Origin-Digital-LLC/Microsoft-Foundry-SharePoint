@@ -96,7 +96,6 @@ namespace FoundrySharePointKnowledge.API.Controllers
                     return this.BadRequest($"Please specify a prompt to the {prompt.Agent} agent.");
 
                 //exchange API token for foundry token
-                string apiToken = await this.HttpContext.GetTokenAsync(FSPKConstants.Security.AccessToken);
                 string foundryToken = await this._tokenAcquisition.GetAccessTokenForUserAsync([FSPKConstants.Foundry.Scope]);
 
                 //return
@@ -111,13 +110,13 @@ namespace FoundrySharePointKnowledge.API.Controllers
         }
 
         /// <summary>
-        /// Migrates foundry agents from one project to another.
+        /// Promotes Foundry agents from one project to another.
         /// </summary>
-        [HttpPost(FSPKConstants.Routing.API.MigrateAgents)]
-        public async Task<IActionResult> MigrateAgents([FromBody()] MigrateAgentsRequest request)
+        [HttpPost(FSPKConstants.Routing.API.PromoteFoundryAgents)]
+        public async Task<IActionResult> PromoteFoundryAgentsAsync([FromBody()] MigrateAgentsRequest request)
         {
             //initialization
-            this._logger.LogInformation($"Handling request to {nameof(this.MigrateAgents)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+            this._logger.LogInformation($"Handling request to {nameof(this.PromoteFoundryAgentsAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //migrate agents
             MigrateAgentsResponse response = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
@@ -127,6 +126,15 @@ namespace FoundrySharePointKnowledge.API.Controllers
                 return this.Ok(response);
             else
                 return this.BadRequest(response);
+        }
+
+        /// <summary>
+        /// Migrates Copilot agents into a Foundry project.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.MigrateCopilotAgents)]
+        public async Task<IActionResult> MigrateCopilotAgentsAsync()
+        {
+            return this.Ok();
         }
 
         /// <summary>

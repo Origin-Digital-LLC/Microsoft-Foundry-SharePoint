@@ -161,24 +161,21 @@ namespace FoundrySharePointKnowledge.API
                 }
             });
 
-            //check local settings
-            if (builder.Environment.IsDevelopment())
+            //add CORS (make sure Azure CORS settings are completely empty)
+            string[] allowedOrigins = builder.Configuration.GetSection(FSPKConstants.Settings.CorsAllowedOrigins)?.Get<string>()?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            builder.Services.AddCors(options =>
             {
-                //add CORS
-                string[] allowedOrigins = builder.Configuration.GetSection(FSPKConstants.Settings.CorsAllowedOrigins).Get<string[]>();
-                builder.Services.AddCors(options =>
+                //add policy
+                options.AddPolicy(FSPKConstants.Security.DefaultCorsPolicy, policy =>
                 {
-                    //add policy
-                    options.AddPolicy(FSPKConstants.Security.DefaultCorsPolicy, policy =>
-                    {
-                        //configure policy
-                        policy.WithOrigins(allowedOrigins ?? Array.Empty<string>())
-                              .AllowAnyMethod()
-                              .AllowAnyHeader()
-                              .AllowCredentials();
-                    });
+                    //configure policy
+                    policy.AllowAnyMethod()
+                          .AllowAnyHeader()
+                          .AllowCredentials()
+                          .WithOrigins(allowedOrigins ?? Array.Empty<string>())
+                          .WithExposedHeaders(FSPKConstants.HTTP.WWWAuthenticate);
                 });
-            }
+            });
 
             //add API clients
             Program.AddGraphClient(builder, entraIDSettings);
@@ -215,12 +212,11 @@ namespace FoundrySharePointKnowledge.API
                 }
             });
 
-            //configure CORS
+            //configure server
             app.UseHttpsRedirection();
-            if (builder.Environment.IsDevelopment())
-                app.UseCors(FSPKConstants.Security.DefaultCorsPolicy);
+            app.UseCors(FSPKConstants.Security.DefaultCorsPolicy);
 
-            //configure middleware
+            //configure authentication
             app.UseAuthentication();
             app.UseAuthorization();
 
@@ -350,15 +346,8 @@ namespace FoundrySharePointKnowledge.API
             BlobClientOptions options = new BlobClientOptions();
             BlobStorageSettings blobStorageSettings = await keyVaultService.GetBlobStorageSettingsAsync();
 
-            //configure telemetry
-            options.Diagnostics.IsLoggingEnabled = false;
-            options.Diagnostics.IsTelemetryEnabled = false;
-            options.Diagnostics.IsDistributedTracingEnabled = false;
-
-            //configure retry
-            options.Retry.Mode = RetryMode.Exponential;
-            options.Retry.Delay = FSPKConstants.AzureStorage.RetryPolicy.Backoff;
-            options.Retry.MaxRetries = FSPKConstants.AzureStorage.RetryPolicy.Attempts;
+            //configure client
+            options.ConfigureAzureStorageOptions();
 
             //return
             builder.Services.AddSingleton(new BlobServiceClient(blobStorageSettings.ConnectionString, options));
@@ -374,15 +363,8 @@ namespace FoundrySharePointKnowledge.API
             //initialization
             TableClientOptions options = new TableClientOptions();
 
-            //configure telemetry
-            options.Diagnostics.IsLoggingEnabled = false;
-            options.Diagnostics.IsTelemetryEnabled = false;
-            options.Diagnostics.IsDistributedTracingEnabled = false;
-
-            //configure retry
-            options.Retry.Mode = RetryMode.Exponential;
-            options.Retry.Delay = FSPKConstants.AzureStorage.RetryPolicy.Backoff;
-            options.Retry.MaxRetries = FSPKConstants.AzureStorage.RetryPolicy.Attempts;
+            //configure client
+            options.ConfigureAzureStorageOptions();
 
             //return
             builder.Services.AddSingleton(new TableServiceClient(blobConnectionString, options));

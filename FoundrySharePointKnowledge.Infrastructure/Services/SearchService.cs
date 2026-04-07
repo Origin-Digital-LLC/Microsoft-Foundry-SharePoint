@@ -19,6 +19,7 @@ using Azure.Storage.Blobs.Models;
 using Azure.AI.DocumentIntelligence;
 using Azure.Search.Documents.Models;
 using Azure.Search.Documents.Indexes;
+using Azure.Security.KeyVault.Secrets;
 using Azure.Search.Documents.Indexes.Models;
 
 using FoundrySharePointKnowledge.Common;
@@ -49,6 +50,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         private readonly ISharePointService _sharePointService;
         private readonly SearchIndexerClient _searchIndexerClient;
         private readonly ImageEmbeddingsClient _imageEmbeddingsClient;
+        private readonly ILogger<KeyVaultService> _sourceKeyVaultLogger;
         private readonly Dictionary<string, SearchClient> _searchClients;
         private readonly DocumentIntelligenceClient _documentIntelligenceClient;
         #endregion
@@ -64,6 +66,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                              IHttpClientFactory httpClientFactory,
                              SearchIndexerClient searchIndexerClient,
                              ImageEmbeddingsClient imageEmbeddingsClient,
+                             ILogger<KeyVaultService> sourceKeyVaultLogger,
                              Dictionary<string, SearchClient> searchClients,
                              DocumentIntelligenceClient documentIntelligenceClient)
         {
@@ -79,6 +82,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             this._sharePointService = sharePointService ?? throw new ArgumentNullException(nameof(sharePointService));
             this._httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
             this._searchIndexerClient = searchIndexerClient ?? throw new ArgumentNullException(nameof(searchIndexerClient));
+            this._sourceKeyVaultLogger = sourceKeyVaultLogger ?? throw new ArgumentNullException(nameof(sourceKeyVaultLogger));
             this._imageEmbeddingsClient = imageEmbeddingsClient ?? throw new ArgumentNullException(nameof(imageEmbeddingsClient));
             this._documentIntelligenceClient = documentIntelligenceClient ?? throw new ArgumentNullException(nameof(documentIntelligenceClient));
         }
@@ -1074,6 +1078,151 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //assemble array
                 Values = results.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Migrates blobs and tables from one Azure Storage Account to another.
+        /// </summary>
+        public async Task<MigrateStorageAccountResult> MigrateStorageAccountAsync(MigrateStorageAccountRequest migrateStorageAccountsRequest)
+        {
+            //initialization
+            List<string> errors = new List<string>();
+
+            try
+            {
+                //parse source key vault uri
+                if (!Uri.TryCreate(migrateStorageAccountsRequest.SourceKeyVaultURL, UriKind.Absolute, out Uri sourceKeyVaultURI))
+                    throw new InvalidOperationException(nameof(migrateStorageAccountsRequest.SourceKeyVaultURL));
+
+                //get source storage account settings
+                KeyVaultService sourceKeyVaultService = new KeyVaultService(new SecretClient(sourceKeyVaultURI, this._entraIDSettings.ToCredential()), this._sourceKeyVaultLogger);
+                BlobStorageSettings blobStorageSettings = await sourceKeyVaultService.GetBlobStorageSettingsAsync();
+
+                //create source storage client options
+                TableClientOptions sourceTableOptions = new TableClientOptions();
+                BlobClientOptions sourceBlobOptions = new BlobClientOptions();
+                sourceTableOptions.ConfigureAzureStorageOptions();
+                sourceBlobOptions.ConfigureAzureStorageOptions();
+
+                //create source storage clients
+                TableServiceClient sourceTableClient = new TableServiceClient(blobStorageSettings.ConnectionString, sourceTableOptions);
+                BlobServiceClient sourceBlobClient = new BlobServiceClient(blobStorageSettings.ConnectionString, sourceBlobOptions);
+                string destinationBlobURL = this._blobClient.Uri.ToString().ToLowerInvariant();
+                string sourceBlobURL = sourceBlobClient.Uri.ToString().ToLowerInvariant();
+
+                //migrate tables
+                foreach (string tableName in migrateStorageAccountsRequest.TableNames)
+                {
+                    //ensure each destination table
+                    TableClient destinationTable = this._tableClient.GetTableClient(tableName);
+                    TableClient sourceTable = sourceTableClient.GetTableClient(tableName);
+                    List<TableEntity> destinationEntities = new List<TableEntity>();
+                    await destinationTable.CreateIfNotExistsAsync();
+
+                    //get all source entities
+                    await foreach (TableEntity sourceEntity in sourceTable.QueryAsync<TableEntity>())
+                    {
+                        //get each entity's values
+                        Dictionary<string, object> destinationValues = new Dictionary<string, object>();
+                        foreach (string key in sourceEntity.Keys)
+                        {
+                            //check URLs
+                            if (key == FSPKConstants.AzureStorage.Tables.URL)
+                            {
+                                //fix blob URLs
+                                string updatedURL = sourceEntity[key]?.ToString()?.ToLowerInvariant();
+                                if (string.IsNullOrWhiteSpace(updatedURL))
+                                    destinationValues.Add(key, null);
+                                else
+                                    destinationValues.Add(key, updatedURL.Replace(sourceBlobURL, destinationBlobURL));
+                            }
+                            else
+                            {
+                                //copy all other columns directly
+                                destinationValues.Add(key, sourceEntity[key]);
+                            }
+                        }
+
+                        //collect entities
+                        destinationEntities.Add(new TableEntity(destinationValues));
+                    }
+
+                    try
+                    {
+                        //bulk upsert list item entities                
+                        this._logger.LogInformation($"Persisting {destinationEntities.Count} destination {tableName} entities.");
+                        await destinationTable.PerformBulkTableTansactionAsync(destinationEntities);
+                    }
+                    catch (Exception ex)
+                    {
+                        //error
+                        string error = $"Failed to bulk upload desination {tableName} entities";
+                        this._logger.LogError(ex, $"{error}.");
+                        errors.Add($"{error}: {ex.Message}.");
+                    }
+                }
+
+                //migrate containers
+                foreach (string containerName in migrateStorageAccountsRequest.ContainerNames)
+                {
+                    //ensure each destination container
+                    Dictionary<string, BlobDownloadResult> destinationBlobs = new Dictionary<string, BlobDownloadResult>();
+                    BlobContainerClient destinationContainer = this._blobClient.GetBlobContainerClient(containerName);
+                    BlobContainerClient sourceContainer = sourceBlobClient.GetBlobContainerClient(containerName);
+                    await destinationContainer.CreateIfNotExistsAsync(PublicAccessType.None);
+
+                    //get all source blobs
+                    await foreach (BlobItem blob in sourceContainer.GetBlobsAsync(new GetBlobsOptions()))
+                    {
+                        //download source blob
+                        BlobClient sourceBlob = sourceContainer.GetBlobClient(blob.Name);
+                        destinationBlobs.Add(blob.Name, await sourceBlob.DownloadContentAsync());
+                    }
+
+                    //bulk upload destination blobs
+                    await Parallel.ForEachAsync(destinationBlobs, new ParallelOptions { MaxDegreeOfParallelism = FSPKConstants.AzureStorage.Blobs.Parallelism }, async (blob, _) =>
+                    {
+                        //get source blob
+                        BlobClient destinationBlob = destinationContainer.GetBlobClient(blob.Key);
+                        Dictionary<string, string> destinationMetadata = blob.Value.Details.Metadata?.ToDictionary() ?? new Dictionary<string, string>();
+
+                        //fix URLs
+                        if (destinationMetadata.TryGetValue(FSPKConstants.AzureStorage.Tables.URL, out string url) && !string.IsNullOrWhiteSpace(url))
+                            destinationMetadata[FSPKConstants.AzureStorage.Tables.URL] = url.ToLowerInvariant().Replace(sourceBlobURL, destinationBlobURL);
+
+                        //upload destination blob
+                        Response<BlobContentInfo> blobResult = await destinationBlob.UploadAsync(blob.Value.Content.ToStream(), new BlobHttpHeaders() { ContentType = blob.Value.Details.ContentType }, destinationMetadata);
+
+                        //check result
+                        string blobError = await blobResult.GetResponseErrorAsync<BlobContentInfo>($"upsert blob {blob.Key}");
+                        if (!string.IsNullOrWhiteSpace(blobError))
+                        {
+                            //error
+                            string error = $"Failed to upsert blob {blob.Key}";
+                            errors.Add($"{error}: {blobError}");
+                            this._logger.LogError($"{error}.");
+                        }
+                        else
+                        {
+                            //success
+                            this._logger.LogInformation($"Migrated blob {blob.Key} from {sourceBlobURL}.");
+                        }
+                    });
+                }
+
+                //done
+                this._logger.LogInformation($"Successfully migrated storage account {blobStorageSettings.Name}.");
+            }
+            catch (Exception ex)
+            {
+                //error
+                string error = $"Failed to migrate storage account from {migrateStorageAccountsRequest.SourceKeyVaultURL}.";
+                this._logger.LogError(ex, error);
+                errors.Add(error);
+            }
+
+            //return
+            return new MigrateStorageAccountResult(errors);
         }
         #endregion
         #region Private Methods

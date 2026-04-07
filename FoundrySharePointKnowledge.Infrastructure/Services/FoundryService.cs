@@ -315,7 +315,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 string getConnectionName(string connectionId)
                 {
                     //initialization
-                    string[] connectionIdParts = connectionId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    string[] connectionIdParts = connectionId.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
                     //set destination resource group name if not provided
                     if (string.IsNullOrWhiteSpace(destinationResourceGroupName))
@@ -329,14 +329,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 string getFoundryAccountName(Uri uri)
                 {
                     //return
-                    return uri?.Host?.Split('.')?.FirstOrDefault();
+                    return uri?.Host?.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)?.FirstOrDefault();
                 }
 
                 //this gets a foundry account name from a project url
                 string getFoundryProjectName(Uri uri)
                 {
                     //return
-                    return uri?.ToString()?.Split('/')?.LastOrDefault();
+                    return uri?.ToString()?.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)?.LastOrDefault();
                 }
 
                 //get foundry metadata
@@ -440,15 +440,23 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                         //get api key
                                         if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.Search.Key, out string azureAISearchAdminKey))
                                         {
-                                            //use source azure search admin key
+                                            //use source azure ai search admin key
                                             collectWarning($"Azure AI Search index connection {searchConnectionName} will use the source admin key since {FSPKConstants.Settings.KeyVault.Search.Key} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
                                             AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
                                             azureAISearchAdminKey = apiCredentials.ApiKey;
                                         }
 
+                                        //get resource id
+                                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.Search.ResourceId, out string azureAISearchResourceId))
+                                        {
+                                            //use source azure ai search resource id
+                                            collectWarning($"Azure AI Search index connection {searchConnectionName} will use the source resource id since {FSPKConstants.Settings.KeyVault.Search.ResourceId} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                                            azureAISearchResourceId = projectConnection.Metadata[FSPKConstants.Foundry.Tools.ResourceId];
+                                        }
+
                                         //create azure ai search tool definition
                                         toolDefinitions.Add(searchConnectionName, new SearchToolDefinition(projectConnection.Metadata[FSPKConstants.Foundry.Tools.DisplayName],
-                                                                                                           projectConnection.Metadata[FSPKConstants.Foundry.Tools.ResourceId],
+                                                                                                           azureAISearchResourceId,
                                                                                                            azureAISearchAdminKey,
                                                                                                            index.IndexName,
                                                                                                            index.QueryType,
@@ -492,7 +500,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 await foreach (CognitiveServicesProjectConnectionResource connection in destinationProjectConnections.GetAllAsync())
                     destinationConnections.Add(connection);
 
-                //process destination connctions
+                //process destination connections
                 foreach (CognitiveServicesProjectConnectionResource connection in destinationConnections)
                 {
                     //check tool
@@ -811,10 +819,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// <summary>
         /// Builds a foundry client with the given credential.
         /// </summary>
-        private AIProjectClient GetFoundryClient(TokenCredential tokenCredential)
+        private AIProjectClient GetFoundryClient(TokenCredential tokenCredential, int index = 0)
         {
             //return
-            return new AIProjectClient(this._foundryProjectSettings.ProjectEndpoint, tokenCredential);
+            return new AIProjectClient(this._foundryProjectSettings.ProjectEndpoints[index], tokenCredential);
         }
         #endregion
     }
