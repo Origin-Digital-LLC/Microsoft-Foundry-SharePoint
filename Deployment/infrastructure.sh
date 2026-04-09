@@ -193,6 +193,13 @@ signInPermissionPermission=$(assign_entra_id_app_permission "$authClientId" "$gr
 sitesReadAllPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$sitesReadAllPermissionScopeId" "$sitesReadAllScope");
 selectedSitesPermission=$(assign_entra_id_app_permission "$authClientId" "$graphAPIPermissionId" "$selectedSitesPermissionScopeId" "$selectedSitesScope");
 
+#check production
+if [[ $environmentNormalized == *prd ]]; then
+    #skip foundry project
+    foundryProjectName="";
+    echo "Skipping Foundry Project provisioning for production resource group $resourceGroupName.";
+fi
+
 #ensure foundry
 foundryName="$resourceGroupName-foundry01";
 foundryResult=$(ensure_foundry_project "$resourceGroupName" "$secondaryRegion" "$foundryName" "$foundryProjectName" "$foundrySKU" "$authEnterpriseAppObjectId");
@@ -206,10 +213,18 @@ foundryProjectEndpoint=${foundryComponents[3]};
 foundryInferenceEndpoint=${foundryComponents[5]};
 foundryDocumentIntelligenceEndpoint=${foundryComponents[2]};
 
-#ensure foundry model deployments
-llmModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$llmModel" "$llmVersion" "$llmCapacity" "$llmFormat");
+#ensure foundry model deployments for search
 imageModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$imageModel" "$imageVersion" "$imageCapacity" "$imageFormat");
 embeddingModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$embeddingModel" "$embeddingVersion" "$embeddingCapacity" "$embeddingFormat");
+    
+#check production
+if [[ $environmentNormalized == *prd ]]; then
+    #skip foundry agent models    
+    echo "Skipping Foundry agent model deployments for production resource group $resourceGroupName.";
+else
+    #ensure foundry model deployments for agents
+    llmModelResult=$(ensure_foundry_model_deployment "$resourceGroupName" "$foundryName" "$llmModel" "$llmVersion" "$llmCapacity" "$llmFormat");
+fi
 
 #ensure search
 searchName="$resourceGroupName-search01";
