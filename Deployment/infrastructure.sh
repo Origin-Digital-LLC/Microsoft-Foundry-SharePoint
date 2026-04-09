@@ -107,6 +107,7 @@ appInsightsResult=$(ensure_app_insights "$resourceGroupName" "$primaryRegion" "$
 
 #parse app insights components
 appInsightsComponents=(${appInsightsResult//|/ });
+appInsightsResourceId=${appInsightsComponents[2]};
 appInsightsConnectionString=${appInsightsComponents[0]};
 appInsightsInstramentationKey=${appInsightsComponents[1]};
 
@@ -275,6 +276,7 @@ foundryInferenceEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundr
 foundryDocumentIntelligenceEndpointResult=$(ensure_key_vault_secret "$keyVaultName" "foundry-document-intelligence-endpoint" "$foundryDocumentIntelligenceEndpoint");
 
 #ensure app insights secrets
+appInsightsResourceIdResult=$(ensure_key_vault_secret "$keyVaultName" "app-insights-resource-id" "$appInsightsResourceId");
 appInsightsConnectionStringResult=$(ensure_key_vault_secret "$keyVaultName" "app-insights-connection-string" "$appInsightsConnectionString");
 appInsightsInstramentationKeyResult=$(ensure_key_vault_secret "$keyVaultName" "app-insights-instramentation-key" "$appInsightsInstramentationKey");
 
