@@ -195,7 +195,7 @@ function ensure_key_vault_secret()
 	fi
 }
 
-#Creates an application insights instance by name if it doesn't already exist. [Returns: connectionString|instramentationKey]
+#Creates an application insights instance by name if it doesn't already exist. [Returns: connectionString|instramentationKey|resourceId]
 function ensure_app_insights()
 {
 	#initialization
@@ -208,15 +208,16 @@ function ensure_app_insights()
 	local appInsights=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --output "tsv");
    	if [ -z "$appInsights" ]; then
 		#create
-		echo "Creating $name." >&2;
+		echo "Creating app insights $name." >&2;
 		appInsights=$(az monitor app-insights component create --resource-group $resourceGroupName --app $name --location $region);
-		echo "Created $name successfully." >&2;
+		echo "Created app insights $name successfully." >&2;
   	else
 		#already exists
-		echo "$name already exists." >&2;
+		echo "App insights $name already exists." >&2;
 	fi
 
-	#get connection string
+	#get properties
+	local resourceId=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --query "id" --output "tsv");
 	local connectionString=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --query "connectionString" --output "tsv");
 	
 	#parse out instramentation key
@@ -226,7 +227,7 @@ function ensure_app_insights()
 
    	#return    	
    	local instramentationKey=${splitOnSemicolon[0]};
-	echo "$connectionString|$instramentationKey";
+	echo "$connectionString|$instramentationKey|$resourceId";
 }
 
 #Creates a storage account instance by name if it doesn't already exist. [Returns: connectionString|accessKey|resourceId]
