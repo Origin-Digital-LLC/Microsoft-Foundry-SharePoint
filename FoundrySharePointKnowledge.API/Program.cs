@@ -264,7 +264,7 @@ namespace FoundrySharePointKnowledge.API
 
             //create search clients
             searchClients.Add(FSPKConstants.Search.Indexes.Images, new SearchClient(uri, FSPKConstants.Search.Indexes.Images, credential));
-            searchClients.Add(FSPKConstants.Search.Indexes.Foundry, new SearchClient(uri, FSPKConstants.Search.Indexes.Foundry, credential));
+            searchClients.Add(FSPKConstants.Search.Indexes.Documents, new SearchClient(uri, FSPKConstants.Search.Indexes.Documents, credential));
             searchClients.Add(FSPKConstants.Search.Indexes.Vectorized, new SearchClient(uri, FSPKConstants.Search.Indexes.Vectorized, credential));
 
             //return

@@ -103,7 +103,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             };
 
             //execute search
-            Response<SearchResults<VectorizedChunk>> response = await this._searchClients[FSPKConstants.Search.Indexes.Foundry].SearchAsync<VectorizedChunk>(query, options);
+            Response<SearchResults<VectorizedChunk>> response = await this._searchClients[FSPKConstants.Search.Indexes.Documents].SearchAsync<VectorizedChunk>(query, options);
             string searchError = await response.GetResponseErrorAsync<SearchResults<VectorizedChunk>>($"search query: {query}");
             if (!string.IsNullOrWhiteSpace(searchError))
                 throw new Exception($"Search query {query} failed: {searchError}");
@@ -274,7 +274,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 }))
                 {
                     //begin deletion
-                    string documentErrorMessage = $"Failed to delete search documents from index {FSPKConstants.Search.Indexes.Foundry}: ";
+                    string documentErrorMessage = $"Failed to delete search documents from index {FSPKConstants.Search.Indexes.Documents}: ";
                     this._logger.LogInformation($"Deleting source file from azure storage blob container {FSPKConstants.AzureStorage.Blobs.SourceContainer}.");
 
                     //get clients                
@@ -313,10 +313,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         documentSearchOptions.Select.Add(keyField);
                         documentSearchOptions.Select.Add(nameof(VectorizedChunk.DocumentId));
                         this._logger.LogInformation($"Searching for chunks via {documentSearchOptions.Filter}.");
-                        Response<SearchResults<VectorizedChunk>> documentsSearchResult = await this._searchClients[FSPKConstants.Search.Indexes.Foundry].SearchAsync<VectorizedChunk>(null, documentSearchOptions);
+                        Response<SearchResults<VectorizedChunk>> documentsSearchResult = await this._searchClients[FSPKConstants.Search.Indexes.Documents].SearchAsync<VectorizedChunk>(null, documentSearchOptions);
 
                         //check result
-                        string documentSearchError = await documentsSearchResult.GetResponseErrorAsync<SearchResults<VectorizedChunk>>($"search for file {file} in index {FSPKConstants.Search.Indexes.Foundry}");
+                        string documentSearchError = await documentsSearchResult.GetResponseErrorAsync<SearchResults<VectorizedChunk>>($"search for file {file} in index {FSPKConstants.Search.Indexes.Documents}");
                         if (!string.IsNullOrWhiteSpace(documentSearchError))
                             throw new Exception($"{documentErrorMessage}search: {documentSearchError}");
 
@@ -337,12 +337,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                             this._logger.LogInformation($"Found {documentsToDelete.Count} document chunk(s) and {documentIds.Count} image chunk(s) to delete.");
 
                         //delete documents
-                        Response<IndexDocumentsResult> deleteDocumentsResult = await this._searchClients[FSPKConstants.Search.Indexes.Foundry].DeleteDocumentsAsync(keyField, documentsToDelete);
-                        string deleteDocumentsError = await deleteDocumentsResult.GetResponseErrorAsync<IndexDocumentsResult>($"delete documents for {file} from index {FSPKConstants.Search.Indexes.Foundry}");
+                        Response<IndexDocumentsResult> deleteDocumentsResult = await this._searchClients[FSPKConstants.Search.Indexes.Documents].DeleteDocumentsAsync(keyField, documentsToDelete);
+                        string deleteDocumentsError = await deleteDocumentsResult.GetResponseErrorAsync<IndexDocumentsResult>($"delete documents for {file} from index {FSPKConstants.Search.Indexes.Documents}");
                         if (!string.IsNullOrWhiteSpace(deleteDocumentsError))
                             throw new Exception($"{documentErrorMessage}index delete: {deleteDocumentsError}");
                         else
-                            this._logger.LogInformation($"Deleted {documentsToDelete.Count} document chunk(s) from {FSPKConstants.Search.Indexes.Foundry}.");
+                            this._logger.LogInformation($"Deleted {documentsToDelete.Count} document chunk(s) from {FSPKConstants.Search.Indexes.Documents}.");
 
                         //delete images
                         foreach (string documentId in documentIds)
@@ -553,16 +553,16 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //rebuild index
                 await this.CreateIndexAsync(index);
-                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.ListItemName);
-                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.ListItemName);
-                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.ListItemSkillSet);
+                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.ListItemsName);
+                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.ListItemsName);
+                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.ListItemsName);
 
                 //configure text skillset
-                SearchIndexerSkillset skillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.ListItemSkillSet, new SearchIndexerSkill[]
+                SearchIndexerSkillset skillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.ListItemsName, new SearchIndexerSkill[]
                 { 
                     //assemble array
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ListItemTitleSkill, FSPKConstants.Search.Abstration.Document, titleAbstraction, titleVector),
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ListItemDescriptionSkill, FSPKConstants.Search.Abstration.Document, descriptionAbstraction, descriptionVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.ListItemTitleSkill, FSPKConstants.Search.Abstration.Document, titleAbstraction, titleVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.ListItemDescriptionSkill, FSPKConstants.Search.Abstration.Document, descriptionAbstraction, descriptionVector),
                 })
                 {
                     //assemble object
@@ -652,10 +652,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 await this.CreateSkillSetAsync(skillset);
 
                 //create data source
-                SearchIndexerDataSourceConnection dataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.ListItemName, sharePointListItemTable.Name, false, isDeleted);
+                SearchIndexerDataSourceConnection dataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.ListItemsName, sharePointListItemTable.Name, false, isDeleted);
 
                 //create indexer
-                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.ListItemName, dataSourceConnection, index.Name, skillset.Name);
+                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.ListItemsName, dataSourceConnection, index.Name, skillset.Name);
 
                 //return
                 return string.Empty;
@@ -760,9 +760,9 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //rebuild text index
                 await this.CreateIndexAsync(textIndex);
-                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.TextName);
-                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.TextName);
-                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.TextName);
+                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.DocumentsName);
+                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.DocumentsName);
+                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.DocumentsName);
 
                 //add image search fields
                 this.AddStandardField(imageIndex, email, false, true, true, true, true, null, SearchFieldDataType.String);
@@ -780,13 +780,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //rebuild image index
                 await this.CreateIndexAsync(imageIndex);
-                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.ImageName);
-                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.ImageName);
-                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.ImageName);
+                await this.DeleteIndexerAsync(FSPKConstants.Search.Indexer.ImagesName);
+                await this.DeleteSkillsetAsync(FSPKConstants.Search.Skillset.ImagesName);
+                await this.DeleteDataSourceAsync(FSPKConstants.Search.DataSource.ImagesName);
 
                 //create data sources
-                SearchIndexerDataSourceConnection textDataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.TextName, sourceContainer.Name, true);
-                SearchIndexerDataSourceConnection imageDataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.ImageName, metadataTable.Name, false);
+                SearchIndexerDataSourceConnection imageDataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.ImagesName, metadataTable.Name, false);
+                SearchIndexerDataSourceConnection textDataSourceConnection = await this.CreateAzureStorageDatasourceAsync(FSPKConstants.Search.DataSource.DocumentsName, sourceContainer.Name, true);
 
                 //build entity extraction matada
                 Dictionary<EntityCategory, string> entityCategories = new Dictionary<EntityCategory, string>()
@@ -813,18 +813,18 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 };
 
                 //configure text skillset
-                SearchIndexerSkillset textSkillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.TextName, new SearchIndexerSkill[]
+                SearchIndexerSkillset textSkillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.DocumentsName, new SearchIndexerSkill[]
                 { 
                     //assemble array
                     this.CreateSplitSkill(),
                     this.CreateImageExtrationSkill(),
                     this.CreateImageExtractionShaperSkill(allExtractedImages, imageContainer.Uri),
                     this.CreateEntityRecognitionSkill(EntityRecognitionSkill.SkillVersion.Latest, entityCategories),
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ContentEmbeddingSkill, allDocumentPages, allDocumentPages, textVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.ContentEmbeddingSkill, allDocumentPages, allDocumentPages, textVector),
                     this.CreateImageVerbalizationSkill(allExtractedImages, FSPKConstants.Search.ImageVerbialization.SystemPrompt, FSPKConstants.Search.ImageVerbialization.UserPrompt),
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.FullNameEmbeddingSkill, FSPKConstants.Search.Abstration.Document, firstFullName, FSPKConstants.Search.Abstration.FullNameVector),
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ImageVerbalizationEmbeddingSkill, allExtractedImages, verbalizedImagesAbsreaction, FSPKConstants.Search.Abstration.VerbalizedImageVector),
-                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skillset.ImageURLEmbeddingSkill, allExtractedImages, allExtractedImages.CombineURL(FSPKConstants.Search.Abstration.ImagePath), FSPKConstants.Search.Abstration.ImagePathVector)
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.FullNameEmbeddingSkill, FSPKConstants.Search.Abstration.Document, firstFullName, FSPKConstants.Search.Abstration.FullNameVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.ImageVerbalizationEmbeddingSkill, allExtractedImages, verbalizedImagesAbsreaction, FSPKConstants.Search.Abstration.VerbalizedImageVector),
+                    this.CreateOpenAIEmbeddingSkill(FSPKConstants.Search.Skills.ImageURLEmbeddingSkill, allExtractedImages, allExtractedImages.CombineURL(FSPKConstants.Search.Abstration.ImagePath), FSPKConstants.Search.Abstration.ImagePathVector)
                 })
                 {
                     //assemble object
@@ -893,10 +893,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 };
 
                 //configure image skillset
-                SearchIndexerSkillset imageSkillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.ImageName, new SearchIndexerSkill[]
+                SearchIndexerSkillset imageSkillset = new SearchIndexerSkillset(FSPKConstants.Search.Skillset.ImagesName, new SearchIndexerSkill[]
                 {
                     //assemble array
-                    this.CreateWebAPISkill(FSPKConstants.Search.Skillset.ImageVectorizationSkill, FSPKConstants.Search.Abstration.Document, nameof(ImageVectorizationInput.URL), urlAbstraction, FSPKConstants.Search.Abstration.Vector, imageVector, this._searchSettings.WebAPISkillEndpoint.CombineURL(FSPKConstants.Routing.API.VectorizeImage))
+                    this.CreateWebAPISkill(FSPKConstants.Search.Skills.ImageVectorizationSkill, FSPKConstants.Search.Abstration.Document, nameof(ImageVectorizationInput.URL), urlAbstraction, FSPKConstants.Search.Abstration.Vector, imageVector, this._searchSettings.WebAPISkillEndpoint.CombineURL(FSPKConstants.Routing.API.VectorizeImage))
                 });
 
                 //create skillsets
@@ -904,11 +904,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 await this.CreateSkillSetAsync(imageSkillset);
 
                 //create text indexer
-                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.TextName, textDataSourceConnection, textIndex.Name, textSkillset.Name, FSPKConstants.Search.Fields.MetadataStorageLastModified);
+                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.DocumentsName, textDataSourceConnection, textIndex.Name, textSkillset.Name, FSPKConstants.Search.Fields.MetadataStorageLastModified);
 
                 //wait for the source indexer to run and generate metadata table columns before creating the image indexer
                 await this.WaitForAdminOperationAsync(60);
-                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.ImageName, imageDataSourceConnection, imageIndex.Name, imageSkillset.Name, null, new Dictionary<string, string>() { { FSPKConstants.Search.Abstration.Document.CombineURL(imageVector), imageVector } });
+                await this.CreateIndexerAsync(FSPKConstants.Search.Indexer.ImagesName, imageDataSourceConnection, imageIndex.Name, imageSkillset.Name, null, new Dictionary<string, string>() { { FSPKConstants.Search.Abstration.Document.CombineURL(imageVector), imageVector } });
 
                 //return
                 return string.Empty;
@@ -1165,11 +1165,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //migrate containers
                 foreach (string containerName in migrateStorageAccountsRequest.ContainerNames)
                 {
-                    //ensure each destination container
-                    Dictionary<string, BlobDownloadResult> destinationBlobs = new Dictionary<string, BlobDownloadResult>();
-                    BlobContainerClient destinationContainer = this._blobClient.GetBlobContainerClient(containerName);
+                    //get container clients
                     BlobContainerClient sourceContainer = sourceBlobClient.GetBlobContainerClient(containerName);
-                    await destinationContainer.CreateIfNotExistsAsync(PublicAccessType.None);
+                    BlobContainerClient destinationContainer = this._blobClient.GetBlobContainerClient(containerName);
+                    Dictionary<string, BlobDownloadResult> destinationBlobs = new Dictionary<string, BlobDownloadResult>();
+
+                    //ensure each destination container
+                    await destinationContainer.CreateIfNotExistsAsync(containerName == FSPKConstants.AzureStorage.Blobs.ImageContainer ? PublicAccessType.Blob : PublicAccessType.None);
 
                     //get all source blobs
                     await foreach (BlobItem blob in sourceContainer.GetBlobsAsync(new GetBlobsOptions()))
@@ -1852,7 +1854,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //assemble object
                 Context = FSPKConstants.Search.Abstration.Document,
-                Name = FSPKConstants.Search.Skillset.ExtractionSkill
+                Name = FSPKConstants.Search.Skills.ExtractionSkill
             };
 
             //configure document extraction skill
@@ -1890,7 +1892,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //assemble object
                 DefaultLanguageCode = SplitSkillLanguage.En,
-                Name = FSPKConstants.Search.Skillset.SplitSkill,
+                Name = FSPKConstants.Search.Skills.SplitSkill,
                 Context = FSPKConstants.Search.Abstration.Document,
                 MaximumPageLength = FSPKConstants.Search.Chunking.MaximumPageLength,
                 TextSplitMode = useSentences ? TextSplitMode.Sentences : TextSplitMode.Pages
@@ -2036,14 +2038,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //assemble object
                 Context = context,
-                Name = FSPKConstants.Search.Skillset.ImageEmbeddingSkill
+                Name = FSPKConstants.Search.Skills.ImageEmbeddingSkill
             };
         }
 
         /// <summary>
         /// Creates an LLM chat completion skill for image verbalization.
         /// </summary>
-        private ChatCompletionSkill CreateImageVerbalizationSkill(string context, string systemPrompt, string userPrompt)
+        private ChatCompletionSkill CreateImageVerbalizationSkill(string context, string systemMessage, string userMessage)
         {
             //return
             return new ChatCompletionSkill(
@@ -2052,12 +2054,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 new InputFieldMappingEntry(FSPKConstants.Search.ChatCompletion.SystemMessage)
                 {
                     //assemble object
-                    Source = systemPrompt
+                    Source = systemMessage
                 },
                 new InputFieldMappingEntry(FSPKConstants.Search.ChatCompletion.UserMessage)
                 {
                     //assemble object
-                    Source = userPrompt
+                    Source = userMessage
                 },
                 new InputFieldMappingEntry(FSPKConstants.Search.Abstration.Image)
                 {
@@ -2079,7 +2081,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 Context = context,
                 HttpMethod = FSPKConstants.HTTP.Post,
                 ApiKey = this._foundrySettings.AccountKey,
-                Name = FSPKConstants.Search.Skillset.ChatCompletion,
+                Name = FSPKConstants.Search.Skills.ChatCompletion,
                 Timeout = TimeSpan.FromMinutes(FSPKConstants.Search.ChatCompletion.TimeoutMinutes)
             };
         }
@@ -2102,12 +2104,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 {
                     //assemble object
                     Source = string.Format(FSPKConstants.Search.ImageExtraction.ImagePathFormat, containerURL.ToString().ToLowerInvariant().TrimEnd('/'), context.CombineURL(FSPKConstants.Search.Abstration.ImagePath))
-                },
-                //new InputFieldMappingEntry(FSPKConstants.Search.Abstration.DataURI)
-                //{
-                //    //assemble object
-                //    Source = string.Format(FSPKConstants.Search.ImageExtraction.DataURIFormat, context.CombineURL(FSPKConstants.Search.Abstration.Data))
-                //}                
+                }                 
             ],
             [
                 //assemble array
@@ -2120,7 +2117,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //assemble object
                 Context = context,
-                Name = FSPKConstants.Search.Skillset.ShaperSkill
+                Name = FSPKConstants.Search.Skills.ShaperSkill
             };
         }
 
@@ -2158,7 +2155,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //assemble object
                 Context = FSPKConstants.Search.Abstration.Document,
                 DefaultLanguageCode = EntityRecognitionSkillLanguage.En,
-                Name = FSPKConstants.Search.Skillset.EntityRecognitionSkill
+                Name = FSPKConstants.Search.Skills.EntityRecognitionSkill
             };
 
             //assign categories

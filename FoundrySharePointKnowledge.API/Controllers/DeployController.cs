@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
+using FoundrySharePointKnowledge.Domain.Search;
 using FoundrySharePointKnowledge.Domain.Contracts;
 
 namespace FoundrySharePointKnowledge.API.Controllers
@@ -28,11 +29,11 @@ namespace FoundrySharePointKnowledge.API.Controllers
             this._logger.LogInformation($"Handling {nameof(this.DeploySharePointDocumentSearchAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //deploy
-            string result = await this._searchService.EnsureVectorizableBlobIndexAsync(FSPKConstants.Search.Indexes.Foundry, FSPKConstants.Search.Indexes.Images);
+            string result = await this._searchService.EnsureVectorizableBlobIndexAsync(FSPKConstants.Search.Indexes.Documents, FSPKConstants.Search.Indexes.Images);
 
             //return
             if (string.IsNullOrWhiteSpace(result))
-                return this.Ok($"Search index {FSPKConstants.Search.Indexes.Foundry} deployed successfully.");
+                return this.Ok($"Search index {FSPKConstants.Search.Indexes.Documents} deployed successfully.");
             else
                 return this.StatusCode(500, $"Failed to deploy Foundry SharePoint document search: {result}");
         }
@@ -52,6 +53,23 @@ namespace FoundrySharePointKnowledge.API.Controllers
                 return this.Ok($"Search index {FSPKConstants.Search.Indexes.ListIems} deployed successfully.");
             else
                 return this.StatusCode(500, $"Failed to deploy Foundry SharePoint list item search: {result}");
+        }
+
+        /// <summary>
+        /// Migrates blobs and tables from one Azure Storage Account to another.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.MigrateStorageAccount)]
+        public async Task<IActionResult> MigrateStorageAccountAsync([FromBody] MigrateStorageAccountRequest request)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling {nameof(this.MigrateStorageAccountAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            //return
+            MigrateStorageAccountResult result = await this._searchService.MigrateStorageAccountAsync(request);
+            if (result.IsSuccessful)
+                return this.Ok($"Successfully performed {request}.");
+            else
+                return this.StatusCode(500, $"Failed to perform {request}: {result}");
         }
         #endregion
     }

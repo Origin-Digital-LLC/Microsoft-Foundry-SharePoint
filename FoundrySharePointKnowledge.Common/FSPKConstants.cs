@@ -164,15 +164,7 @@ namespace FoundrySharePointKnowledge.Common
             public static class Indexers
             {
                 public const int IntervalMinutes = 5;
-            }
-
-            public static class Indexes
-            {
-                public const string Foundry = "sharepoint-foundry";
-                public const string Images = "sharepoint-foundry-images";
-                public const string ListIems = "sharepoint-foundry-list-items";
-                public const string Vectorized = "sharepoint-foundry-vectorized";
-            }
+            }      
 
             public static class Profiles
             {
@@ -226,39 +218,51 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Lowercase = "lowercase";
             }
 
+            public static class Indexes
+            {
+                public const string Images = "sharepoint-foundry-images";
+                public const string Documents = "sharepoint-foundry-documents";
+                public const string ListIems = "sharepoint-foundry-list-items";
+                public const string Vectorized = "sharepoint-foundry-vectorized";
+            }
+
             public static class DataSource
             {
-                public const string TextName = "sharepoint-foundry-data-source";
-                public const string ImageName = "sharepoint-foundry-data-source-images";
-                public const string ListItemName = "sharepoint-foundry-data-source-list-items";
+                public const string ImagesName = "sharepoint-foundry-data-source-images";
+                public const string DocumentsName = "sharepoint-foundry-data-source-documents";
+                public const string ListItemsName = "sharepoint-foundry-data-source-list-items";
             }
 
             public static class Indexer
             {
-                public const string TextName = "sharepoint-foundry-indexer";
-                public const string ImageName = "sharepoint-foundry-indexer-images";
-                public const string ListItemName = "sharepoint-foundry-indexer-list-items";
+                public const string ImagesName = "sharepoint-foundry-indexer-images";
+                public const string DocumentsName = "sharepoint-foundry-indexer-documents";
+                public const string ListItemsName = "sharepoint-foundry-indexer-list-items";
             }
 
-            public static class Skillset
+            public static class Skills
             {
                 public const string SplitSkill = "split-skill";
                 public const string ShaperSkill = "shaper-skill";
                 public const string ExtractionSkill = "extraction-skill";
                 public const string ProperCaseSkill = "proper-case-skill";
-                public const string TextName = "sharepoint-foundry-skillset";
                 public const string ChatCompletion = "chat-completion-skill";
                 public const string ListItemTitleSkill = "list-item-title-skill";
                 public const string ImageEmbeddingSkill = "image-embedding-skill";
-                public const string ImageName = "sharepoint-foundry-skillset-images";
                 public const string ContentEmbeddingSkill = "content-embedding-skill";
-                public const string ListItemSkillSet = "list-item-vectorizor-skillset";
                 public const string EntityRecognitionSkill = "entity-recognition-skill";
                 public const string FullNameEmbeddingSkill = "full-name-embedding-skill";
                 public const string ImageURLEmbeddingSkill = "image-url-embedding-skill";
                 public const string ImageVectorizationSkill = "image-vectorization-skill";
                 public const string ListItemDescriptionSkill = "list-item-description-skill";
                 public const string ImageVerbalizationEmbeddingSkill = "image-verbalization-embedding-skill";
+            }
+
+            public static class Skillset
+            {
+                public const string ImagesName = "sharepoint-foundry-skillset-images";
+                public const string DocumentsName = "sharepoint-foundry-skillset-documents";
+                public const string ListItemsName = "sharepoint-foundry-skillset-listitems";
             }
 
             public static class Chunking
@@ -442,11 +446,12 @@ namespace FoundrySharePointKnowledge.Common
                 public const string SearchQuery = "search/{query?}";
                 public const string DeployVectorized = "vectorized";
                 public const string VectorizeImage = "vectorize-image";
-                public const string DeploySharePointDocuments = "sharepoint-foundry";
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
                 public const string MigrateCopilotAgents = "migrate-copilot-agents";
+                public const string DeploySharePointDocuments = "sharepoint-foundry";
+                public const string MigrateStorageAccount = "migrate-storage-account";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
                 public const string DeploySharePointListItems = "sharepoint-foundry-list-items";
             }
@@ -454,7 +459,7 @@ namespace FoundrySharePointKnowledge.Common
             public static class Foundry
             {
                 public const string Embedddings = "/embeddings?api-version=";
-                public const string OpenAIDeployments = "/openai/deployments/";
+                public const string OpenAIDeployments = "openai/deployments/";
             }
 
             public static class Blazor
