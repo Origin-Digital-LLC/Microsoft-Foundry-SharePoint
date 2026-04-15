@@ -22,14 +22,14 @@ namespace FoundrySharePointKnowledge.API.Controllers
         /// <summary>
         /// Deploys an Azure Search index populated from SharePoint remote event recievers (Power Automate).
         /// </summary>
-        [HttpPut(FSPKConstants.Routing.API.DeploySharePointDocuments)]
-        public async Task<IActionResult> DeploySharePointDocumentSearchAsync()
+        [HttpPut(FSPKConstants.Routing.API.DeploySharePointDocumentsSearchTopography)]
+        public async Task<IActionResult> DeploySharePointDocumentsSearchTopographyAsync([FromRoute()] bool deleteExisting = true)
         {
             //initialization
-            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointDocumentSearchAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointDocumentsSearchTopographyAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //deploy
-            string result = await this._searchService.EnsureVectorizableBlobIndexAsync(FSPKConstants.Search.Indexes.Documents, FSPKConstants.Search.Indexes.Images);
+            string result = await this._searchService.EnsureSharePointDocumentsSearchTopographyAsync(deleteExisting);
 
             //return
             if (string.IsNullOrWhiteSpace(result))
@@ -41,16 +41,16 @@ namespace FoundrySharePointKnowledge.API.Controllers
         /// <summary>
         /// Deploys an Azure Search index populated from SharePoint webhooks.
         /// </summary>
-        [HttpPut(FSPKConstants.Routing.API.DeploySharePointListItems)]
-        public async Task<IActionResult> DeploySharePointListItemsSearchAsync()
+        [HttpPut(FSPKConstants.Routing.API.DeploySharePointListItemsSearchTopography)]
+        public async Task<IActionResult> DeploySharePointListItemsSearchTopographyAsync([FromRoute()] bool deleteExisting = true)
         {
             //initialization
-            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointListItemsSearchAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointListItemsSearchTopographyAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //return
-            string result = await this._searchService.EnsureSharePointListIndexAsync(FSPKConstants.Search.Indexes.ListIems);
+            string result = await this._searchService.EnsureSharePointListItemsSearchTopographyAsync(deleteExisting);
             if (string.IsNullOrWhiteSpace(result))
-                return this.Ok($"Search index {FSPKConstants.Search.Indexes.ListIems} deployed successfully.");
+                return this.Ok($"Search index {FSPKConstants.Search.Indexes.ListItems} deployed successfully.");
             else
                 return this.StatusCode(500, $"Failed to deploy Foundry SharePoint list item search: {result}");
         }

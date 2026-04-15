@@ -105,7 +105,7 @@ namespace FoundrySharePointKnowledge.API
                 {
                     //get oauth values
                     string type = SecuritySchemeType.OAuth2.ToString().ToLowerInvariant();
-                    string scope = entraIDSettings.Scope.CombineURL(FSPKConstants.Security.TokenValidation.Scope);
+                    string apiScope = entraIDSettings.Scope.CombineURL(FSPKConstants.Security.TokenValidation.Scope);
 
                     //configure open api
                     OpenApiSecurityScheme oAuthScheme = new OpenApiSecurityScheme
@@ -123,7 +123,9 @@ namespace FoundrySharePointKnowledge.API
                                 Scopes = new Dictionary<string, string>
                                 {
                                     //assemble dictionary
-                                    { scope, FSPKConstants.API.Scope }
+                                    { apiScope, FSPKConstants.API.Scope },
+                                    { FSPKConstants.Graph.Scope, nameof(FSPKConstants.Graph) },
+                                    { FSPKConstants.SharePoint.Scope, nameof(FSPKConstants.SharePoint) }
                                 }
                             }
                         }
@@ -134,7 +136,7 @@ namespace FoundrySharePointKnowledge.API
                     options.AddSecurityRequirement(document => new OpenApiSecurityRequirement()
                     {
                         //assemble array
-                        [new OpenApiSecuritySchemeReference(type, document)] = [scope]
+                        [new OpenApiSecuritySchemeReference(type, document)] = [apiScope]
                     });
                 }
                 else

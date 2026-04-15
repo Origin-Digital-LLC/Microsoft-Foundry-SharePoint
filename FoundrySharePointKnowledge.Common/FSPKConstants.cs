@@ -10,6 +10,7 @@ namespace FoundrySharePointKnowledge.Common
         public static class Security
         {
             public const string JWT = nameof(JWT);
+            public const string DefaultScope = ".default";
             public const double TokenExpirationMinutes = 60;
             public const string AccessToken = "access_token";
             public const string Authorization = nameof(Authorization);
@@ -31,15 +32,7 @@ namespace FoundrySharePointKnowledge.Common
                     public const string Authorize = "/oauth2/v2.0/authorize";
                     public const string Configuration = "/.well-known/openid-configuration";
                 }
-            }
-
-            public static class RSA
-            {
-                public const string Kid = "kid";
-                public const string Keys = "keys";
-                public const string Modulus = "n";
-                public const string Exponent = "e";
-            }
+            }           
 
             public static class OAuth
             {
@@ -160,12 +153,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Space = "%20";
                 public const string Equal = " eq ";
             }
-
-            public static class Indexers
-            {
-                public const int IntervalMinutes = 5;
-            }      
-
+          
             public static class Profiles
             {
                 public const string Vision = "vision-profile-cosine-hnsw";
@@ -222,22 +210,25 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string Images = "sharepoint-foundry-images";
                 public const string Documents = "sharepoint-foundry-documents";
-                public const string ListIems = "sharepoint-foundry-list-items";
+                public const string ListItems = "sharepoint-foundry-list-items";
                 public const string Vectorized = "sharepoint-foundry-vectorized";
             }
 
-            public static class DataSource
+            public static class DataSources
             {
-                public const string ImagesName = "sharepoint-foundry-data-source-images";
-                public const string DocumentsName = "sharepoint-foundry-data-source-documents";
-                public const string ListItemsName = "sharepoint-foundry-data-source-list-items";
+                public const string Suffix = "-data-source";
+                public const string Images = Indexes.Images + DataSources.Suffix;
+                public const string Documents = Indexes.Documents + DataSources.Suffix;
+                public const string ListItems = Indexes.ListItems + DataSources.Suffix;
             }
 
-            public static class Indexer
+            public static class Indexers
             {
-                public const string ImagesName = "sharepoint-foundry-indexer-images";
-                public const string DocumentsName = "sharepoint-foundry-indexer-documents";
-                public const string ListItemsName = "sharepoint-foundry-indexer-list-items";
+                public const int IntervalMinutes = 5;
+                public const string Suffix = "-indexer";
+                public const string Images = Indexes.Images + Indexers.Suffix;
+                public const string Documents = Indexes.Documents + Indexers.Suffix;
+                public const string ListItems = Indexes.ListItems + Indexers.Suffix;
             }
 
             public static class Skills
@@ -258,11 +249,12 @@ namespace FoundrySharePointKnowledge.Common
                 public const string ImageVerbalizationEmbeddingSkill = "image-verbalization-embedding-skill";
             }
 
-            public static class Skillset
+            public static class Skillsets
             {
-                public const string ImagesName = "sharepoint-foundry-skillset-images";
-                public const string DocumentsName = "sharepoint-foundry-skillset-documents";
-                public const string ListItemsName = "sharepoint-foundry-skillset-listitems";
+                public const string Suffix = "-skillset";
+                public const string Images = Indexes.Images + Skillsets.Suffix;
+                public const string Documents = Indexes.Documents + Skillsets.Suffix;
+                public const string ListItems = Indexes.ListItems + Skillsets.Suffix;
             }
 
             public static class Chunking
@@ -385,15 +377,16 @@ namespace FoundrySharePointKnowledge.Common
         public static class Graph
         {
             public const string Version = "v1.0/";
-            public const string Scope = Graph.URL + ".default";
             public const string URL = "https://graph.microsoft.com/";
+            public const string Scope = Graph.URL + Security.DefaultScope;
         }
 
         public static class SharePoint
         {
             public const string Client = nameof(SharePoint);
             public const string Placeholder = nameof(Placeholder);
-            public const string SiteCollectionURL = "https://netorg14925960.sharepoint.com/";
+            public const string SiteCollectionURL = "https://<your-tenant>.sharepoint.com/";
+            public const string Scope = SharePoint.SiteCollectionURL + Security.DefaultScope;
             public const string FileDownloadURLFormat = Graph.URL + Graph.Version + "sites/{0}/drives/{1}/items/{2}/content";
 
             public static class Fields
@@ -448,12 +441,13 @@ namespace FoundrySharePointKnowledge.Common
                 public const string VectorizeImage = "vectorize-image";
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
+                public const string DeleteExisting = "/{deleteExisting:bool=true}";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
                 public const string MigrateCopilotAgents = "migrate-copilot-agents";
-                public const string DeploySharePointDocuments = "sharepoint-foundry";
                 public const string MigrateStorageAccount = "migrate-storage-account";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
-                public const string DeploySharePointListItems = "sharepoint-foundry-list-items";
+                public const string DeploySharePointDocumentsSearchTopography = "deploy-sharepoint-documents-search-topography" + API.DeleteExisting;
+                public const string DeploySharePointListItemsSearchTopography = "deploy-sharepoint-list-items-search-topography" + API.DeleteExisting;
             }
 
             public static class Foundry
