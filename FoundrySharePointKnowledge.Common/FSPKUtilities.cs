@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 
 using Azure;
+using Azure.Core;
+using Azure.Data.Tables;
 
 namespace FoundrySharePointKnowledge.Common
 {
@@ -128,6 +130,42 @@ namespace FoundrySharePointKnowledge.Common
                 return result;
             else
                 throw new InvalidOperationException($"{uri} is not a proper URL for setting {propertyName}.");
+        }
+
+        /// <summary>
+        /// Ensures a unique SharePoint Graph list item id.
+        /// </summary>
+        public static string CreateUniqueId(params string[] ids)
+        {
+            //return
+            return string.Join(FSPKConstants.Search.Fields.IdDelimiter, ids);
+        }
+
+        /// <summary>
+        /// Configures Azure Storage (Blobs and Tables) client options.
+        /// </summary>
+        public static void ConfigureAzureStorageOptions<T>(this T options) where T : ClientOptions
+        {
+            //initialization
+            options.Diagnostics.IsLoggingEnabled = false;
+            options.Diagnostics.IsTelemetryEnabled = false;
+            options.Diagnostics.IsDistributedTracingEnabled = false;
+
+            //return
+            options.Retry.Mode = RetryMode.Exponential;
+            options.Retry.Delay = FSPKConstants.AzureStorage.RetryPolicy.Backoff;
+            options.Retry.MaxRetries = FSPKConstants.AzureStorage.RetryPolicy.Attempts;
+        }
+
+        /// <summary>
+        /// Bulk uploads entities to an Azure Storage Table.
+        /// </summary>
+        public static async Task PerformBulkTableTansactionAsync<T>(this TableClient client, List<T> entities) where T : ITableEntity
+        {
+            //return
+            foreach (IGrouping<string, T> group in entities.GroupBy(e => e.PartitionKey))
+                foreach (T[] batch in group.Chunk(FSPKConstants.AzureStorage.Tables.BatchSize))
+                    await client.SubmitTransactionAsync(batch.Select(e => new TableTransactionAction(TableTransactionActionType.UpsertReplace, e)));
         }
         #endregion
     }

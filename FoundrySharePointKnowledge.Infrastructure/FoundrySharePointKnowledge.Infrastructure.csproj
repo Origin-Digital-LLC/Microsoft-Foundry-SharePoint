@@ -8,13 +8,14 @@
 		<EnablePreviewFeatures>true</EnablePreviewFeatures>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Graph" Version="5.102.0" />
-		<PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
-		<PackageReference Include="Azure.AI.Projects" Version="1.2.0-beta.5" />
+		<PackageReference Include="Microsoft.Graph" Version="5.103.0" />
+		<PackageReference Include="Azure.ResourceManager" Version="1.14.0" />
 		<PackageReference Include="Azure.AI.Inference" Version="1.0.0-beta.5" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
 		<PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+		<PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.9.0" />
+		<PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.0.0-beta.1" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\FoundrySharePointKnowledge.Domain\FoundrySharePointKnowledge.Domain.csproj" />

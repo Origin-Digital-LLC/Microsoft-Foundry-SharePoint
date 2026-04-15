@@ -10,6 +10,7 @@ namespace FoundrySharePointKnowledge.Common
         public static class Security
         {
             public const string JWT = nameof(JWT);
+            public const string DefaultScope = ".default";
             public const double TokenExpirationMinutes = 60;
             public const string AccessToken = "access_token";
             public const string Authorization = nameof(Authorization);
@@ -21,18 +22,17 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Version = "ver";
                 public const string Audience = "aud";
                 public const string APIAudience = "api://";
+                public const string Scope = "access_as_user";
                 public const string Issuer = "https://sts.windows.net/";
                 public const string Instance = "https://login.microsoftonline.com/";
-                public const string ConfigurationEndpoint = "/.well-known/openid-configuration";
-            }
 
-            public static class RSA
-            {
-                public const string Kid = "kid";
-                public const string Keys = "keys";
-                public const string Modulus = "n";
-                public const string Exponent = "e";
-            }
+                public static class Endpoints
+                {
+                    public const string Token = "/oauth2/v2.0/token";
+                    public const string Authorize = "/oauth2/v2.0/authorize";
+                    public const string Configuration = "/.well-known/openid-configuration";
+                }
+            }           
 
             public static class OAuth
             {
@@ -49,20 +49,28 @@ namespace FoundrySharePointKnowledge.Common
                 public const string CognitiveServicesScope = "https://cognitiveservices.azure.com/.default";
                 public const string TokenEndpointFormat = "https://login.microsoftonline.com/{0}/oauth2/v2.0/token";
             }
-        }
+        }       
 
         public static class JsonPropertyNames
         {
             public const string Data = "data";
+            public const string WebId = "webId";
+            public const string Value = "value";
             public const string Model = "model";
             public const string Usage = "usage";
             public const string Index = "index";
             public const string Object = "object";
             public const string Values = "values";
+            public const string SiteUrl = "siteUrl";
+            public const string Resource = "resource";
             public const string RecordId = "recordId";
+            public const string TenantId = "tenantId";
             public const string Embedding = "embedding";
+            public const string ClientState = "clientState";
             public const string TotalTokens = "total_tokens";
             public const string PromptTokens = "prompt_tokens";
+            public const string SubscriptionId = "subscriptionId";
+            public const string ExpirationDateTime = "expirationDateTime";
         }
 
         public static class Settings
@@ -71,6 +79,7 @@ namespace FoundrySharePointKnowledge.Common
             public const string KeyVaultURL = "AZURE_KEY_VAULT_URL";
             public const string TokenFlowURL = nameof(TokenFlowURL);
             public const string CorsAllowedOrigins = "CORS_ALLOWED_ORIGINS";
+            public const string UseSwaggerAuthFlow = nameof(UseSwaggerAuthFlow);
             public const string VisionModelVersion = nameof(VisionModelVersion);
             public const string EmbeddingAPIVersion = nameof(EmbeddingAPIVersion);
             public const string ChatCompletionAPIVersion = nameof(ChatCompletionAPIVersion);
@@ -83,6 +92,7 @@ namespace FoundrySharePointKnowledge.Common
                     public const string APIURL = "api-url";
                     public const string URL = "search-api-url";
                     public const string Key = "search-admin-key";
+                    public const string ResourceId = "search-resource-id";
                     public const string StorageAccountResourceId = "storage-account-resource-id";
                 }
 
@@ -91,6 +101,7 @@ namespace FoundrySharePointKnowledge.Common
                     public const string LLMModel = "foundry-llm-model";
                     public const string ImageModel = "foundry-image-model";
                     public const string AccountKey = "foundry-account-key";
+                    public const string SubscriptionId = "subscription-id";
                     public const string EmbeddingModel = "foundry-embedding-model";
                     public const string OpenAIEndpoint = "foundry-open-ai-endpoint";
                     public const string ProjectEndpoint = "foundry-project-endpoint";
@@ -116,6 +127,12 @@ namespace FoundrySharePointKnowledge.Common
                     public const string Name = "storage-account-name";
                     public const string ConnectionString = "storage-account-connection-string";
                 }
+
+                public static class SharePoint
+                {
+                    public const string WebhookSecret = "sharepoint-webhook-secret";
+                    public const string SiteCollectionURL = "sharepoint-site-collection-url";
+                }
             }
 
             public static class Blazor
@@ -129,24 +146,14 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class Search
         {
+            public const string EndpointFormat = "https://{0}.search.windows.net/";
+
             public static class Queries
             {
                 public const string Space = "%20";
                 public const string Equal = " eq ";
             }
-
-            public static class Indexers
-            {
-                public const int IntervalMinutes = 5;
-            }
-
-            public static class Indexes
-            {
-                public const string Foundry = "sharepoint-foundry";
-                public const string Images = "sharepoint-foundry-images";
-                public const string Vectorized = "sharepoint-foundry-vectorized";
-            }
-
+          
             public static class Profiles
             {
                 public const string Vision = "vision-profile-cosine-hnsw";
@@ -199,34 +206,55 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Lowercase = "lowercase";
             }
 
-            public static class DataSource
+            public static class Indexes
             {
-                public const string TextName = "sharepoint-foundry-data-source";
-                public const string ImageName = "sharepoint-foundry-data-source-images";
+                public const string Images = "sharepoint-foundry-images";
+                public const string Documents = "sharepoint-foundry-documents";
+                public const string ListItems = "sharepoint-foundry-list-items";
+                public const string Vectorized = "sharepoint-foundry-vectorized";
             }
 
-            public static class Indexer
+            public static class DataSources
             {
-                public const string TextName = "sharepoint-foundry-indexer";
-                public const string ImageName = "sharepoint-foundry-indexer-images";
+                public const string Suffix = "-data-source";
+                public const string Images = Indexes.Images + DataSources.Suffix;
+                public const string Documents = Indexes.Documents + DataSources.Suffix;
+                public const string ListItems = Indexes.ListItems + DataSources.Suffix;
             }
 
-            public static class Skillset
+            public static class Indexers
+            {
+                public const int IntervalMinutes = 5;
+                public const string Suffix = "-indexer";
+                public const string Images = Indexes.Images + Indexers.Suffix;
+                public const string Documents = Indexes.Documents + Indexers.Suffix;
+                public const string ListItems = Indexes.ListItems + Indexers.Suffix;
+            }
+
+            public static class Skills
             {
                 public const string SplitSkill = "split-skill";
                 public const string ShaperSkill = "shaper-skill";
                 public const string ExtractionSkill = "extraction-skill";
                 public const string ProperCaseSkill = "proper-case-skill";
-                public const string TextName = "sharepoint-foundry-skillset";
                 public const string ChatCompletion = "chat-completion-skill";
+                public const string ListItemTitleSkill = "list-item-title-skill";
                 public const string ImageEmbeddingSkill = "image-embedding-skill";
-                public const string ImageName = "sharepoint-foundry-skillset-images";
                 public const string ContentEmbeddingSkill = "content-embedding-skill";
                 public const string EntityRecognitionSkill = "entity-recognition-skill";
                 public const string FullNameEmbeddingSkill = "full-name-embedding-skill";
                 public const string ImageURLEmbeddingSkill = "image-url-embedding-skill";
                 public const string ImageVectorizationSkill = "image-vectorization-skill";
+                public const string ListItemDescriptionSkill = "list-item-description-skill";
                 public const string ImageVerbalizationEmbeddingSkill = "image-verbalization-embedding-skill";
+            }
+
+            public static class Skillsets
+            {
+                public const string Suffix = "-skillset";
+                public const string Images = Indexes.Images + Skillsets.Suffix;
+                public const string Documents = Indexes.Documents + Skillsets.Suffix;
+                public const string ListItems = Indexes.ListItems + Skillsets.Suffix;
             }
 
             public static class Chunking
@@ -290,7 +318,10 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class Fields
             {
+                public const string IdDelimiter = "=";
                 public const string Timestamp = nameof(Timestamp);
+                public const string TitleVector = nameof(TitleVector);
+                public const string DescriptionVector = nameof(DescriptionVector);
                 public const string MetadataStoragePath = "metadata_storage_path";
                 public const string MetadataStorageLastModified = "metadata_storage_last_modified";
             }
@@ -306,12 +337,17 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class Blobs
             {
+                public const int Parallelism = 8;
                 public const string ImageContainer = "extracted-images";
                 public const string SourceContainer = "sharepoint-ingestion";
             }
 
             public static class Tables
             {
+                public const int BatchSize = 100;
+                public const string URL = nameof(URL);
+                public const string SharePointListItems = nameof(SharePointListItems);
+                public const string SharePointDeltaTokens = nameof(SharePointDeltaTokens);
                 public const string ExtractedImageMetadata = nameof(ExtractedImageMetadata);
             }
         }
@@ -321,20 +357,43 @@ namespace FoundrySharePointKnowledge.Common
             public const string Client = nameof(Foundry);
             public const string EncodingFormat = "float";
             public const string ModelId = "prebuilt-layout";
+            public const string WorkflowYaml = nameof(WorkflowYaml);
             public const string Scope = "https://ai.azure.com/user_impersonation";
+
+            public static class Tools
+            {
+                public const string Type = "type";
+                public const string APIType = "ApiType";
+                public const string SiteURL = "site_url";
+                public const string SharePointTarget = "-";
+                public const string DisplayName = "displayName";
+                public const string SearchType = "azure_ai_search";
+                public const string ResourceId = nameof(ResourceId);
+                public const string AppInsights = nameof(AppInsights);
+                public const string SharePointGrounding = "sharepoint_grounding_preview";
+            }
         }
 
         public static class Graph
         {
             public const string Version = "v1.0/";
-            public const string Scope = Graph.URL + ".default";
             public const string URL = "https://graph.microsoft.com/";
+            public const string Scope = Graph.URL + Security.DefaultScope;
         }
 
         public static class SharePoint
         {
             public const string Client = nameof(SharePoint);
+            public const string Placeholder = nameof(Placeholder);
+            public const string SiteCollectionURL = "https://<your-tenant>.sharepoint.com/";
+            public const string Scope = SharePoint.SiteCollectionURL + Security.DefaultScope;
             public const string FileDownloadURLFormat = Graph.URL + Graph.Version + "sites/{0}/drives/{1}/items/{2}/content";
+
+            public static class Fields
+            {
+                public const string Title = nameof(Title);
+                public const string Description = "Case_x0020_Description";
+            }
         }
 
         public static class ContentTypes
@@ -374,20 +433,27 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Ingest = "ingest";
                 public const string Search = "search";
                 public const string Status = "status";
+                public const string Webook = "webhook";
                 public const string ProperCase = "proper-case";
+                public const string SyncListItem = "sync-list-item";
                 public const string SearchQuery = "search/{query?}";
                 public const string DeployVectorized = "vectorized";
                 public const string VectorizeImage = "vectorize-image";
-                public const string DeployFoundry = "sharepoint-foundry";
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
+                public const string DeleteExisting = "/{deleteExisting:bool=true}";
+                public const string PromoteFoundryAgents = "promote-foundry-agents";
+                public const string MigrateCopilotAgents = "migrate-copilot-agents";
+                public const string MigrateStorageAccount = "migrate-storage-account";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
+                public const string DeploySharePointDocumentsSearchTopography = "deploy-sharepoint-documents-search-topography" + API.DeleteExisting;
+                public const string DeploySharePointListItemsSearchTopography = "deploy-sharepoint-list-items-search-topography" + API.DeleteExisting;
             }
 
             public static class Foundry
             {
                 public const string Embedddings = "/embeddings?api-version=";
-                public const string OpenAIDeployments = "/openai/deployments/";
+                public const string OpenAIDeployments = "openai/deployments/";
             }
 
             public static class Blazor
@@ -401,6 +467,7 @@ namespace FoundrySharePointKnowledge.Common
         {
             public const string Post = "POST";
             public const string SubDomainFormat = "{0}://{1}";
+            public const string WWWAuthenticate = "www-authenticate";
             public const string Base64URL = "data:image/jpeg;base64,";
         }
 
@@ -421,6 +488,18 @@ namespace FoundrySharePointKnowledge.Common
             public const string Head = "head::after";
             public const string Controller = "foundry";
             public const string ApplicationRoot = "#app";
+        }
+
+        public static class API
+        {
+            public const string Scope = "API Access";
+            public const string Name = "Foundry SharePoint Knowledge API";
+        }
+
+        public static class OpenTelemetry
+        {
+            public const int MaxBodyLength = 8192;
+            public const string Tag = "http.request.body";
         }
     }
 }

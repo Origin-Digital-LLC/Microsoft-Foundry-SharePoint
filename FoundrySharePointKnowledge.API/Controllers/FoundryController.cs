@@ -96,7 +96,6 @@ namespace FoundrySharePointKnowledge.API.Controllers
                     return this.BadRequest($"Please specify a prompt to the {prompt.Agent} agent.");
 
                 //exchange API token for foundry token
-                string apiToken = await this.HttpContext.GetTokenAsync(FSPKConstants.Security.AccessToken);
                 string foundryToken = await this._tokenAcquisition.GetAccessTokenForUserAsync([FSPKConstants.Foundry.Scope]);
 
                 //return
@@ -108,6 +107,34 @@ namespace FoundrySharePointKnowledge.API.Controllers
                 this._logger.LogError(ex, $"Failed to execute {prompt.Agent} workflow for prompt {prompt.UserMessage}.");
                 return this.BadRequest(ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Promotes Foundry agents from one project to another.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.PromoteFoundryAgents)]
+        public async Task<IActionResult> PromoteFoundryAgentsAsync([FromBody()] MigrateAgentsRequest request)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.PromoteFoundryAgentsAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            //migrate agents
+            MigrateAgentsResponse response = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
+
+            //return
+            if (response.IsSuccessful)
+                return this.Ok(response);
+            else
+                return this.BadRequest(response);
+        }
+
+        /// <summary>
+        /// Migrates Copilot agents into a Foundry project.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.MigrateCopilotAgents)]
+        public async Task<IActionResult> MigrateCopilotAgentsAsync()
+        {
+            return this.Ok();
         }
 
         /// <summary>

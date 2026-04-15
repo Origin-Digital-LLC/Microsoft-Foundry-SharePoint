@@ -35,6 +35,7 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         public string AccountKey { get; init; }
         public string ImageModel { get; init; }
         public Uri OpenAIEndpoint { get; init; }
+        public string SubscriptionId { get; init; }
         public Uri InferenceEndpoint { get; init; }
         public string VisionModelVersion { get; init; }
         public string EmbeddingAPIVersion { get; init; }
