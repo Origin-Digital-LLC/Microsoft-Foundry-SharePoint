@@ -8,50 +8,50 @@ on:
         type: choice
         default: Dev
         required: true
-        description: The target Azure resource group.
+        description: The target Foundry SharePoint Knowledge Azure resource group.
         options:
           - Dev
           - UAT
-          - Prod 
+          - Prod
       resource-group-name-prefix:
         required: true
         default: <your azure resource group prefix>
-        description: The prefix for all Azure resource group names.
+        description: The prefix for all Foundry SharePoint Knowledge Azure resource group names.
       deployment-entra-enterprise-app-object-id:
         required: true
-        default: <your entra id infrastructure app object id>
+        default: <your entra id infrastructure deployment app object id>
         description: The object id of the Entra Enterprise App used to provision PaaS and other Azure infrastructure.
       root-domain:
         required: true
         default: <your root domain>
-        description: The root domain of the production web app.
+        description: The root domain of this Foundry SharePoint Knowledge instance.
       sub-domain:
         required: true
         default: <your sub domain>
-        description: The sub domain of the production web app; the public URL will be https://[sub-domain].[root-domain]
+        description: The sub domain of this Foundry SharePoint Knowledge instance; the public URL will be https://[sub-domain].[root-domain]
       primary-region:
         required: true
-        default: northcentralus
+        default: <your primary region>
         description: The main Azure region used for PaaS components.
       secondary-region:
         required: true
-        default: eastus2
+        default: <your secondary region>
         description: The fallback Azure region used for PaaS components that do not support the primary region.     
       owner-email:
         required: false
-        default: <your admin email address>
+        default: <your admin email>
         description: An administrator email address who will be granted owner access to key vault and entra id apps.     
       localhost-url:
         required: false
-        default: <your front end dev URL>
+        default: http://localhost:8080
         description: The team local development environment URL for which CORS rules will be enabled in lower environments.
-      ai-SKU:
+      foundry-sku:
         default: S0
         required: true
         description: The SKU of the Microsoft Foundry resource.
       
       #TODO: add these back in if GitHub ever allows more than 10 inputs...          
-      #llm-model:
+      #llm-name:
       #  required: true
       #  default: "gpt-4.1"
       #  description: The type of LLM AI model to use.      
@@ -62,8 +62,12 @@ on:
       #llm-version:
       #  required: true
       #  default: "2025-04-14"
-      #  description: The LLM Azure Foundry API version.      
-      #embedding-model:
+      #  description: The LLM Azure Foundry API version.
+      #llm-format:
+      #  required: true
+      #  default: "OpenAI"
+      #  description: The LLM provider.
+      #embedding-name:
       #  required: true
       #  default: "text-embedding-3-small"
       #  description: The type of text embeddings AI model to use.      
@@ -75,24 +79,34 @@ on:
       #  required: true
       #  default: "1"
       #  description: The text embeddings Azure Foundry API version.
+      #embedding-format:
+      #  required: true
+      #  default: "OpenAI"
+      #  description: The text embeddings provider.
       #image-model:
       #  required: true
       #  default: "embed-v-4-0"
       #  description: The type of image embeddings AI model to use.      
       #image-capacity:
-      #  default: "5"
+      #  default: "4"
       #  required: true
       #  description: The image embeddings capacity (in units of 100,000 tokens per minute).      
       #image-version:
       #  required: true
       #  default: "1"
       #  description: The image embeddings Azure Foundry API version.
-env:
-  drop_folder: Deployment
-
+      #image-format:
+      #  required: true
+      #  default: "Cohere"
+      #  description: The image embeddings provider.
+        
 permissions:
   id-token: write
   contents: read
+
+env:
+  SCRIPT_FILE_NAME: infrastructure.sh
+  INFRASTRUCTURE_WORKING_DIRECTORY: deployment
 
 jobs:
   deploy-infrastructure:
@@ -100,29 +114,26 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:        
-        working-directory: ./${{ env.drop_folder }}
+        working-directory: ./${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}
     steps:  
       - name: Checkout Branch
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4 
         
       - name: Azure CLI Login
-        if: github.event_name == 'workflow_dispatch'
         uses: azure/login@v2
         with:
          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDS }}
       
       - name: Deploy Resource Group
-        if: github.event_name == 'workflow_dispatch'        
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
             #initialization
-            chmod +x $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh;
+            chmod +x $GITHUB_WORKSPACE/${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }};
 
             #return
-            $GITHUB_WORKSPACE/${{ env.drop_folder }}/infrastructure.sh \
+            $GITHUB_WORKSPACE/${{ env.INFRASTRUCTURE_WORKING_DIRECTORY }}/${{ env.SCRIPT_FILE_NAME }} \
               "${{ github.event.inputs.target-environment }}" \
               "${{ github.event.inputs.resource-group-name-prefix }}" \
               "${{ github.event.inputs.deployment-entra-enterprise-app-object-id }}" \
@@ -132,15 +143,19 @@ jobs:
               "${{ github.event.inputs.secondary-region }}" \
               "${{ github.event.inputs.owner-email }}" \
               "${{ github.event.inputs.localhost-url }}" \
-              "${{ secrets.AZURE_DEPLOYMENT_AUTH_JWT_SECRET }}";              
+              "${{ github.event.inputs.foundry-sku }}" \
+              "${{ secrets.SHAREPOINT_WEBHOOK_SECRET }}";              
 
               #TODO: add these back in if GitHub ever allows more than 10 inputs...             
               #"${{ github.event.inputs.llm-model }}" \
               #"${{ github.event.inputs.llm-capacity }}" \
               #"${{ github.event.inputs.llm-version }}" \
+              #"${{ github.event.inputs.llm-format }}" \
               #"${{ github.event.inputs.embedding-model }}" \
               #"${{ github.event.inputs.embedding-capacity }}" \
               #"${{ github.event.inputs.embedding-version }}" \
+              #"${{ github.event.inputs.embedding-format }}" \
               #"${{ github.event.inputs.image-model }}" \
               #"${{ github.event.inputs.image-capacity }}" \
-              #"${{ github.event.inputs.image-version }}";
+              #"${{ github.event.inputs.image-version }}" \
+              #"${{ github.event.inputs.image-format }}";        
