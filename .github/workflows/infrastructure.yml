@@ -16,7 +16,7 @@ on:
       resource-group-name-prefix:
         required: true
         default: <your azure resource group prefix>
-        description: The prefix for all Foundry SharePoint Knowledge Azure resource group names.
+        description: The prefix for all Azure resource names.
       deployment-entra-enterprise-app-object-id:
         required: true
         default: <your entra id infrastructure deployment app object id>
@@ -100,6 +100,10 @@ on:
       #  default: "Cohere"
       #  description: The image embeddings provider.
         
+env:
+  SCRIPT_FILE_NAME: infrastructure.sh
+  INFRASTRUCTURE_WORKING_DIRECTORY: deployment
+
 permissions:
   id-token: write
   contents: read

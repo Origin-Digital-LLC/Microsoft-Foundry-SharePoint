@@ -3,6 +3,7 @@ run-name: Foundry SharePoint Knowledge Backend Build [${{ github.run_id }}]
 
 on:
   pull_request
+  
 env:
   dotnet-version: '10.x'
   solution-folder: 'FoundrySharePointKnowledge'  

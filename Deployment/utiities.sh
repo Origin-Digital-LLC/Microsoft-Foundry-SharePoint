@@ -195,7 +195,7 @@ function ensure_key_vault_secret()
 	fi
 }
 
-#Creates an application insights instance by name if it doesn't already exist. [Returns: connectionString|instramentationKey]
+#Creates an application insights instance by name if it doesn't already exist. [Returns: connectionString|instramentationKey|resourceId]
 function ensure_app_insights()
 {
 	#initialization
@@ -208,15 +208,16 @@ function ensure_app_insights()
 	local appInsights=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --output "tsv");
    	if [ -z "$appInsights" ]; then
 		#create
-		echo "Creating $name." >&2;
+		echo "Creating app insights $name." >&2;
 		appInsights=$(az monitor app-insights component create --resource-group $resourceGroupName --app $name --location $region);
-		echo "Created $name successfully." >&2;
+		echo "Created app insights $name successfully." >&2;
   	else
 		#already exists
-		echo "$name already exists." >&2;
+		echo "App insights $name already exists." >&2;
 	fi
 
-	#get connection string
+	#get properties
+	local resourceId=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --query "id" --output "tsv");
 	local connectionString=$(az monitor app-insights component show --resource-group $resourceGroupName --app $name --query "connectionString" --output "tsv");
 	
 	#parse out instramentation key
@@ -226,7 +227,7 @@ function ensure_app_insights()
 
    	#return    	
    	local instramentationKey=${splitOnSemicolon[0]};
-	echo "$connectionString|$instramentationKey";
+	echo "$connectionString|$instramentationKey|$resourceId";
 }
 
 #Creates a storage account instance by name if it doesn't already exist. [Returns: connectionString|accessKey|resourceId]
@@ -444,12 +445,94 @@ function ensure_foundry()
   	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$inferenceEndpoint|$resourceId";
 }
 
+#Creates microsoft foundry portal and project instances by name if thet doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|resourceId|inferenceEndpoint]
+function ensure_foundry_project()
+{
+	#initialization
+   	local sku=$5;
+	local name=$3;  	
+ 	local region=$2;
+	local projectName=$4;
+  	local principalId=$6;
+ 	local resourceGroupName=$1; 
+	local projectURL="/projects/$projectName";
+	local aiUserRoleId="53ca6127-db72-4b80-b1b0-d745d6d5456d";
+   	local aiDeveloperRoleId="64702f94-c441-49e6-a78b-ef80e0188fee";
+   	local contributorRoleId="b24988ac-6180-42a0-ab88-20f7382dd24c";
+   	local cognitiveServicesUserRoleId="a97b65f3-24c7-4388-baec-2e87135dc908";
+	local cognitiveServicesContributorRoleId="25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68";
+
+  	#check existing foundry portal
+   	echo "Ensuring Foundry portal $name." >&2;
+	local foundry=$(az cognitiveservices account list --resource-group $resourceGroupName --query "[?name == '$name']" --output "tsv");
+	if [ -z "$foundry" ]; then
+		#create foundry portal
+		echo "Creating Foundry portal $name." >&2;
+  		local foundryId=$(az cognitiveservices account create --resource-group $resourceGroupName --name $name --location $region --custom-domain $name --kind "AIServices" --sku $sku --query "id" --output "tsv" --assign-identity --yes);
+		echo "Foundry portal $name created successfully." >&2;		 
+	else
+		#foundry portal already exists
+		echo "Foundry $name already exists." >&2;
+	fi
+
+	#check project
+	if [ -z "$projectName" ]; then
+		#skip project
+		echo "Skipping project creation for Foundry $name." >&2;
+	else
+		#check existing foundry project
+	   	echo "Ensuring Foundry project $projectName." >&2;
+		local project=$(az cognitiveservices account project list --resource-group $resourceGroupName --name $name --query "[?name == '$name/$projectName']" --output "tsv");
+		if [ -z "$project" ]; then
+		 	#create foundry project
+		   	echo "Creating Foundry project $projectName." >&2;
+			local projectId=$(az cognitiveservices account project create --resource-group $resourceGroupName --name $name --project-name $projectName --display-name $projectName --location $region --description "This is the $projectName agent pool." --query "id" --output "tsv" --assign-identity);
+		 	echo "Foundry project $projectName created successfully." >&2;
+		else
+			#foundry project already exists
+			echo "Foundry project $projectName already exists." >&2;
+		fi
+	fi
+
+ 	#assign foundry permissions to the given principal (if provided)
+  	if [ -z "$principalId" ]; then
+   		#no principal provided
+		echo "No principal id was provided to receive Foundry roles." >&2;
+   	else
+		#get foundry's scope (id)
+		echo "Granting principal $principalId Foundry roles." >&2;
+		local scope=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
+
+		#add the principal to the roles
+		$(ensure_rbac_access "$principalId" "$scope" "$aiUserRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$aiDeveloperRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$contributorRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesUserRoleId");
+		$(ensure_rbac_access "$principalId" "$scope" "$cognitiveServicesContributorRoleId");
+		echo "Granted the given principal $principalId Foundry security roles successfully." >&2;
+	fi
+  	
+ 	#get foundry metadata
+	local projectAPI="api$projectURL";
+	local resourceId=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "id" --output "tsv");
+  	local accountKey=$(az cognitiveservices account keys list --resource-group $resourceGroupName --name $name --query "key1" --output "tsv");
+	local projectEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."AI Foundry API"' --output "tsv");
+	local documentIntelligenceEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query "properties.endpoints.FormRecognizer" --output "tsv");
+	local openAIEndpoint=$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."OpenAI Language Model Instance API"' --output "tsv");
+	local inferenceEndpoint="$(az cognitiveservices account show --resource-group $resourceGroupName --name $name --query 'properties.endpoints."Azure AI Model Inference API"' --output "tsv")models";
+
+	#return
+	projectEndpoint="$projectEndpoint$projectAPI";
+  	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$resourceId|$inferenceEndpoint";
+}
+
 #Deploys a microsoft foundry model by name if it doesn't already exist. [Returns: nothing]
 function ensure_foundry_model_deployment()
 {
 	#initialization
  	local name=$2;
 	local model=$3;	
+	local format=$6;
    	local version=$4;
    	local capacity=$5;
  	local resourceGroupName=$1;
@@ -460,7 +543,7 @@ function ensure_foundry_model_deployment()
 	if [ -z "$deployment" ]; then
 		#deploy model
 		echo "Deploying $model to Foundry $name." >&2;
-		deployment=$(az cognitiveservices account deployment create --resource-group $resourceGroupName --name $name --deployment-name $model --model-name $model --model-version $version --sku-capacity $capacity --model-format "OpenAI" --sku-name "GlobalStandard");
+		deployment=$(az cognitiveservices account deployment create --resource-group $resourceGroupName --name $name --deployment-name $model --model-name $model --model-version $version --sku-capacity $capacity --model-format $format --sku-name "GlobalStandard");
 	
 		#done
 		echo "Model $model deployed to Foundry $name successfully." >&2;
@@ -689,7 +772,7 @@ function ensure_entra_id_app_registration()
 	echo "$clientId|$clientSecret";
 }
 
-#Ensures a scope on an app. [Returns: Nothing]
+#Ensures a scope on an Entra Id app registration. [Returns: Nothing]
 function expose_entra_id_app_scope()
 {
 	#initialization
@@ -697,22 +780,48 @@ function expose_entra_id_app_scope()
 	local name=$3;
  	local appId=$1;
 	local value=$4;
+	local rawPreAuthorizedAppIds=$5;
 	echo "Ensuring scope $name on Entra Id app $appId." >&2;
 
-	#create application uri
+	#ensure application uri
 	local uri="api://$appId";
 	local appURI=$(az ad app update --id $appId --identifier-uris $uri);
 
-	#update app
-	local json='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":[],"requestedAccessTokenVersion":null,"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]}';
-	local appScope=$(az ad app update --id $appId --set "api=$json");
+	#ensure permission scopes first (which will reset the rest of the API configuration JSON)
+	local oauth2PermissionScopesJSON='"oauth2PermissionScopes":[{"adminConsentDescription":"'"$name"'","adminConsentDisplayName":"'"$name"'","id":"'"$id"'","isEnabled":"true","type":"User","userConsentDescription":"'"$name"'","userConsentDisplayName":"'"$name"'","value":"'"$value"'"}]';
+	local oauth2PermissionScopes=$(az ad app update --id $appId --set "api={$oauth2PermissionScopesJSON}");
+	sleep 5;
+
+	#check preauthorized apps
+	if [ -z "$rawPreAuthorizedAppIds" ]; then
+		echo "Skipping preauthorized apps for $appId." >&2;
+	else
+		#create preauthorized client apps JSON template (since we can't pass arrays to functons in other scripts)
+		local preAuthorizedAppsJSON="";
+		local preAuthorizedAppIds=(${rawPreAuthorizedAppIds//|/ });
+	
+		#populate preauthorized client app ids JSON
+		for p in "${!preAuthorizedAppIds[@]}"; do
+		    local preAuthorizedApp='{"appId":"'"${preAuthorizedAppIds[$p]}"'","delegatedPermissionIds": ["'"$id"'"]}';
+		    if [ "$p" -eq 0 ]; then
+		        preAuthorizedAppIdsJSON="$preAuthorizedApp";
+		    else
+		        preAuthorizedAppIdsJSON="$preAuthorizedAppIdsJSON,$preAuthorizedApp";
+		    fi
+		done
+	
+		#now that the permissions scopes have been set, update the app registration with the full API configuration JSON
+		local fullJSON='{"acceptMappedClaims":null,"knownClientApplications":[],"preAuthorizedApplications":['$preAuthorizedAppIdsJSON'],"requestedAccessTokenVersion":null,'$oauth2PermissionScopesJSON'}';
+		local appScope=$(az ad app update --id $appId --set "api=$fullJSON");
+		echo "Configured preauthorized apps for $appId successfully." >&2;
+	fi
 
 	#return
 	echo "Exposed scope $name on Entra Id app $appId successfully." >&2;
 }
 
-#Grants and admin consents a permission to an app if it doesn't already exist. [Returns: Nothing]
-function assign_app_permission()
+#Grants and admin consents a permission to an entra id app registration if it doesn't already exist. [Returns: Nothing]
+function assign_entra_id_app_permission()
 {
 	#initialization
  	local appId=$1;
@@ -745,17 +854,19 @@ function assign_app_permission()
 	fi
 }
 
-#Grants a service principal access to an Azure source under the given role. [Returns nothing]
-function ensure_rbac_access()
+#Gets an access token from the given Entra Id app registration. [Returns: token]
+function acquire_access_token()
 {
 	#initialization
-	local roleName=$3;
-	local resourceId=$2;
-	local principalId=$1;
+	local appId=$1;
 	
+	#get token
+	apiScope="api://$appId/.default";
+	echo "Acquiring access token for $apiScope." >&2;
+	accessToken=$(az account get-access-token --scope $apiScope --query "accessToken" --output "tsv");
+
 	#return
-	local role=$(az role assignment create --assignee "$principalId" --scope "$resourceId" --role "$roleName");
-	echo "Granted $roleName access for $principalId to $resourceId successfully." >&2;
+	echo "$accessToken";
 }
 
 #Creates an Entra ID app and client secret to use for GitHub actions that deploy an Azure web app. If the app already exists, the client secret is overwritten. [Returns: Nothing, but outputs the credentials to the screen.]
@@ -771,6 +882,52 @@ function get_web_app_deployment_credential()
 	local credentials=$(az ad sp create-for-rbac --name "$webAppName" --role "$role" --scopes "$webAppScope" --years "2" --output "json");
 	echo "Deployment credentials for web app $webAppName generated successfully:" >&2;
 	echo $credentials >&2;
+}
+
+#Grants a service principal access to an Azure source under the given role. [Returns nothing]
+function ensure_rbac_access()
+{
+	#initialization
+	local roleName=$3;
+	local resourceId=$2;
+	local principalId=$1;
+	
+	#return
+	local role=$(az role assignment create --assignee "$principalId" --scope "$resourceId" --role "$roleName");
+	echo "Granted $roleName access for $principalId to $resourceId successfully." >&2;
+}
+
+#Posts to a custom API endpoint. [Returns: response]
+function post_to_api()
+{
+	#initialization
+	local url=$1;
+	local payload=$2;
+	local accessToken=$3;	
+
+	#call api
+	echo "Calling API endpoint $url." >&2;
+	response=$(curl -s -X POST "$url" -H "Content-Type: application/json" -H "Accept: application/json" -H "Authorization: Bearer $accessToken" -d "$payload" -w " (API response code: %{http_code})");
+
+	#return
+  	response="$response" | jq '.';
+	echo "$response";
+}
+
+#Puts to a custom API endpoint without a body. [Returns: response]
+function put_to_api()
+{
+	#initialization
+	local url=$1;
+	local accessToken=$2;	
+
+	#call api
+	echo "Issuing a PUT request to API endpoint $url." >&2;
+	response=$(curl -s -X PUT "$url" -H "Content-Type: application/json" -H "Authorization: Bearer $accessToken" -w " (API response code: %{http_code})");
+
+	#return
+  	response="$response" | jq '.';
+	echo "$response";
 }
 
 #Polls the given resource's provisioning status. [Returns: 0 (Succeeded) or 1 (Failed)]
@@ -806,7 +963,7 @@ function wait_for_az_rest_command()
 	echo "0";
 }
 
-#Creates an Azure Search instance if one doesn't already exist. [Returns: queryKey|adminKey|principalId]
+#Creates an Azure Search instance if one doesn't already exist. [Returns: queryKey|adminKey|principalId|resourceId]
 function ensure_azure_search()
 {
 	#initialization
@@ -847,7 +1004,8 @@ function ensure_azure_search()
 	local principalId=$(az search service update --resource-group "$resourceGroupName" --name "$name" --identity-type "SystemAssigned" --query "identity.principalId" --output "tsv");
 
  	#return
-  	echo "$queryKey|$adminKey|$principalId";
+	local resourceId=$(az search service show --resource-group "$resourceGroupName" --name "$name" --query "id" --output "tsv");
+  	echo "$queryKey|$adminKey|$principalId|$resourceId";
 }
 
 #Creates an Azure App Service Plan if one doesn't already exist. [Returns: Nothing]
@@ -952,8 +1110,8 @@ function ensure_web_app()
 	echo "$principalId|https://$url";
 }
 
-#Sets the CORS rules for a websie. [Returns: nothing]
-function ensure_web_app_cors()
+#Sets the Azure CORS rules for a web app. [Returns: nothing]
+function ensure_web_app_cors_azure()
 {
 	#initialization
 	local name=$2;
@@ -962,18 +1120,39 @@ function ensure_web_app_cors()
 	local supportCredentials=$4;
 	
 	#check credentials
-	echo "Configuring CORS for $name." >&2; 
+	echo "Configuring Azure CORS for $name." >&2; 
 	if [ "$supportCredentials" != "true" ]; then
 		supportCredentials="false";
 	fi
 
 	#set credentials
 	local corsCredentialsResult=$(az resource update --resource-group $resourceGroupName --name "web" --namespace "Microsoft.Web" --resource-type "config" --parent "sites/$name" --set "properties.cors.supportCredentials=$supportCredentials");
-	echo "Set CORS allowed credentials to $supportCredentials for $name." >&2; 
+	echo "Set Azure CORS allowed credentials to $supportCredentials for $name." >&2; 
 
 	#return
 	local corsOriginsResult=$(az webapp cors add --resource-group $resourceGroupName --name $name --allowed-origins $origins);
-	echo "Set CORS allowed origins to $origins for $name." >&2; 
+	echo "Set Azure CORS allowed origins to $origins for $name." >&2; 
+}
+
+#Sets the ASP.NET Core CORS rules for a web app. [Returns: nothing]
+function ensure_web_app_cors_dotnet()
+{
+	#initialization
+	local name=$2;
+	local origins=$3;
+	local resourceGroupName=$1;
+	echo "Configuring ASP.NET Core CORS for $name." >&2; 
+
+	#clear azure CORS rules
+	local corsCredentialsResult=$(az resource update --resource-group $resourceGroupName --name "web" --namespace "Microsoft.Web" --resource-type "config" --parent "sites/$name" --set "properties.cors.supportCredentials=false");
+	local corsOriginsResult=$(az webapp cors remove --resource-group $resourceGroupName --name $name --allowed-origins);
+	echo "Cleared Azure CORS rules for $name." >&2; 
+
+	#add cores JSON as an environment variable
+	appServiceSettingResult=$(az webapp config appsettings set --resource-group $resourceGroupName --name $name --settings "CORS_ALLOWED_ORIGINS=$origins");
+
+	#return
+	echo "Set ASP.NET Core CORS allowed origins to $origins for $name." >&2; 
 }
 
 #Creates an Azure Static Web App if one doesn't already exist. [Returns: principalId|url]
