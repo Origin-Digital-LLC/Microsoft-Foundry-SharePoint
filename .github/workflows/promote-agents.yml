@@ -6,10 +6,10 @@ on:
     inputs:      
       auth-app-id:
         required: true
-        default: <your-auth-app-id>
+        default: <your auth app id>
         description: The app id of the Entra app registration used for authentication.
       api-endpoint:
-        default: https://<your-api-url>/Foundry/promote-foundry-agents
+        default: https://<your api>.azurewebsites.net/Foundry/promote-foundry-agents
         required: true
         description: The absolute URL to the deployment API endpoint.
       force-changes:
@@ -18,23 +18,23 @@ on:
         description: If true, this will delete conflicting destination Foundry components.
       source-resource-group-name:      
         required: true
-        default: <your-source-resource-group-name>
+        default: <your source resource group>
         description: The name of the source resource group.
       source-foundry-name:
         required: true
-        default: <your-source-foundry-name>
+        default: <your source foundry instance>
         description: The name of the source Foundry resource.
       destination-region:
         required: true
-        default: <your-region>
+        default: <your destination region>
         description: The region of the destination Foundry resource.      
       destination-resource-group-name:      
         required: true
-        default: <your-destination-resource-group-name>
+        default: <your destination resource group>
         description: The name of the destination resource group.  
       destination-foundry-name:
         required: true
-        default: <your-destination-foundry-name>
+        default: <your destination foundry instance>
         description: The name of the destination Foundry resource.     
       destination-foundry-sku:
         default: S0
@@ -42,7 +42,7 @@ on:
         description: The SKU of the destination Foundry resource.
       destination-key-vault-name:
         required: true
-        default: <your-key-vault-name>
+        default: <your destination key vault instance>
         description: The name of the destination Key Vault resource.
           
 permissions:
@@ -60,7 +60,7 @@ jobs:
     defaults:
       run:        
         working-directory: ./${{ env.MIGRATION_WORKING_DIRECTORY }}
-    steps:  
+    steps:
       - name: Checkout Branch
         uses: actions/checkout@v4 
         

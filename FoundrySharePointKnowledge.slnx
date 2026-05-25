@@ -17,7 +17,9 @@
     <File Path=".github/workflows/backend-build.yml" />
     <File Path=".github/workflows/backend-deploy.yml" />
     <File Path=".github/workflows/infrastructure.yml" />
-    <File Path=".github/workflows/sharepoint.yml" />
+    <File Path=".github/workflows/promote-agents.yml" />
+    <File Path=".github/workflows/sharepoint-app-permission.yml" />
+    <File Path=".github/workflows/sharepoint-webhook.yml" />
   </Folder>
   <Folder Name="/Solution Items/Search JSON/">
     <File Path="Search JSON/Data Source.json" />

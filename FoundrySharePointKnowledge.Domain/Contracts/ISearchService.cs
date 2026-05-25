@@ -15,9 +15,11 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
         Task<bool> InjestFileAsync(SPFile file);
         Task<bool> UploadFileAsync(SPFile file);        
         Task<VectorizedChunk[]> SearchAsync(string query);
-        Task<string> EnsureVectorizedIndexAsync(string indexName);        
-        Task<string> EnsureVectorizableBlobIndexAsync(string textIndexName, string imageIndexName);
+        Task<string> EnsureVectorizedIndexAsync(string indexName);
+        Task<string> EnsureSharePointListItemsSearchTopographyAsync(bool deleteExisting = true);
+        Task<string> EnsureSharePointDocumentsSearchTopographyAsync(bool deleteExisting = true);
         Task<WebAPISkillPayload<ProperCaseOutput>> ToProperCaseAsync(WebAPISkillPayload<ProperCaseInput> payload);
+        Task<MigrateStorageAccountResult> MigrateStorageAccountAsync(MigrateStorageAccountRequest migrateStorageAccountsRequest);
         Task<WebAPISkillPayload<ImageVectorizationOutput>> VectorizeImagesAsync(WebAPISkillPayload<ImageVectorizationInput> payload);
         #endregion
     }

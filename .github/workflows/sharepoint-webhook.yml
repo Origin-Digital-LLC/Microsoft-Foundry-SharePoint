@@ -5,15 +5,15 @@ on:
     inputs:    
       site-collection-url:
         required: true
-        default: <your site collection url>
+        default: <your sharepoint site collection url>
         description: The absolute URL to the target SharePoint site collection.
       list-name:
         required: true
-        default: <your list display name>
+        default: <your sharepoint list>
         description: A string containing the display name of the SharePoint list to subscribe.
       api-url:
         required: true
-        default: <your api endpoint>
+        default: https://<your api>.azurewebsites.net/SharePoint/webhook
         description: The absolute URL to the API endpoint that listens for SharePoint webhook subscriptions.
     
 jobs:

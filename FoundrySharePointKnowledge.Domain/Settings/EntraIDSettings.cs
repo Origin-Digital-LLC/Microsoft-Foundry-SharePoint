@@ -27,7 +27,6 @@ namespace FoundrySharePointKnowledge.Domain.Settings
         /// <summary>
         /// Builds a client secret credential.
         /// </summary>
-        /// <returns></returns>
         public ClientSecretCredential ToCredential()
         {
             //return

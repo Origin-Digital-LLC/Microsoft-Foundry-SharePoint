@@ -8,42 +8,42 @@ on:
         type: choice
         default: Dev
         required: true
-        description: The target Azure resource group.
+        description: The target Foundry SharePoint Knowledge Azure resource group.
         options:
           - Dev
           - UAT
-          - Prod 
+          - Prod
       resource-group-name-prefix:
         required: true
         default: <your azure resource group prefix>
         description: The prefix for all Azure resource names.
       deployment-entra-enterprise-app-object-id:
         required: true
-        default: <your entra id infrastructure app object id>
+        default: <your entra id infrastructure deployment app object id>
         description: The object id of the Entra Enterprise App used to provision PaaS and other Azure infrastructure.
       root-domain:
         required: true
         default: <your root domain>
-        description: The root domain of the production web app.
+        description: The root domain of this Foundry SharePoint Knowledge instance.
       sub-domain:
         required: true
         default: <your sub domain>
-        description: The sub domain of the production web app; the public URL will be https://[sub-domain].[root-domain]
+        description: The sub domain of this Foundry SharePoint Knowledge instance; the public URL will be https://[sub-domain].[root-domain]
       primary-region:
         required: true
-        default: northcentralus
+        default: <your primary region>
         description: The main Azure region used for PaaS components.
       secondary-region:
         required: true
-        default: eastus2
+        default: <your secondary region>
         description: The fallback Azure region used for PaaS components that do not support the primary region.     
       owner-email:
         required: false
-        default: <your admin email address>
+        default: <your admin email>
         description: An administrator email address who will be granted owner access to key vault and entra id apps.     
       localhost-url:
         required: false
-        default: <your front end dev URL>
+        default: http://localhost:8080
         description: The team local development environment URL for which CORS rules will be enabled in lower environments.
       foundry-sku:
         default: S0
@@ -51,7 +51,7 @@ on:
         description: The SKU of the Microsoft Foundry resource.
       
       #TODO: add these back in if GitHub ever allows more than 10 inputs...          
-      #llm-model:
+      #llm-name:
       #  required: true
       #  default: "gpt-4.1"
       #  description: The type of LLM AI model to use.      
@@ -67,7 +67,7 @@ on:
       #  required: true
       #  default: "OpenAI"
       #  description: The LLM provider.
-      #embedding-model:
+      #embedding-name:
       #  required: true
       #  default: "text-embedding-3-small"
       #  description: The type of text embeddings AI model to use.      
@@ -99,6 +99,7 @@ on:
       #  required: true
       #  default: "Cohere"
       #  description: The image embeddings provider.
+        
 env:
   SCRIPT_FILE_NAME: infrastructure.sh
   INFRASTRUCTURE_WORKING_DIRECTORY: deployment
@@ -106,6 +107,10 @@ env:
 permissions:
   id-token: write
   contents: read
+
+env:
+  SCRIPT_FILE_NAME: infrastructure.sh
+  INFRASTRUCTURE_WORKING_DIRECTORY: deployment
 
 jobs:
   deploy-infrastructure:
@@ -143,7 +148,7 @@ jobs:
               "${{ github.event.inputs.owner-email }}" \
               "${{ github.event.inputs.localhost-url }}" \
               "${{ github.event.inputs.foundry-sku }}" \
-              "${{ secrets.SHAREPOINT_WEBHOOK_SECRET }}"; 
+              "${{ secrets.SHAREPOINT_WEBHOOK_SECRET }}";              
 
               #TODO: add these back in if GitHub ever allows more than 10 inputs...             
               #"${{ github.event.inputs.llm-model }}" \
@@ -157,4 +162,4 @@ jobs:
               #"${{ github.event.inputs.image-model }}" \
               #"${{ github.event.inputs.image-capacity }}" \
               #"${{ github.event.inputs.image-version }}" \
-              #"${{ github.event.inputs.image-format }}";
+              #"${{ github.event.inputs.image-format }}";        

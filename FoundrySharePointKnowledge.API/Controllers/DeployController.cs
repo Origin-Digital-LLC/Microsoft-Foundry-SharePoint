@@ -4,12 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
+using FoundrySharePointKnowledge.Domain.Search;
 using FoundrySharePointKnowledge.Domain.Contracts;
 
 namespace FoundrySharePointKnowledge.API.Controllers
 {
     /// <summary>
-    /// These endpoitns deploy the search topology.
+    /// These endpoitns deploy the search topography.
     /// </summary>
     public class DeployController : BaseController<DeployController>
     {
@@ -17,52 +18,58 @@ namespace FoundrySharePointKnowledge.API.Controllers
         public DeployController(ISearchService searchService,
                                 ILogger<DeployController> logger) : base(logger, searchService) { }
         #endregion
-        #region Endpoints
+        #region Endpoints       
         /// <summary>
-        /// Deploys an Azure Search index with vectorized content.
+        /// Deploys an Azure Search index populated from SharePoint remote event recievers (Power Automate).
         /// </summary>
-        [HttpGet(FSPKConstants.Routing.API.DeployVectorized)]
-        public async Task<IActionResult> DeployVectorizedAsync()
+        [HttpPut(FSPKConstants.Routing.API.DeploySharePointDocumentsSearchTopography)]
+        public async Task<IActionResult> DeploySharePointDocumentsSearchTopographyAsync([FromRoute()] bool deleteExisting = true)
         {
-            //return
-            return await this.DeployIndexAsync(true);
-        }
-
-        /// <summary>
-        /// Deploys an Azure Search index with a vectorizer.
-        /// </summary>
-        [HttpGet(FSPKConstants.Routing.API.DeployFoundry)]
-        public async Task<IActionResult> DeployFoundryAsync()
-        {
-            //return
-            return await this.DeployIndexAsync(false);
-        }
-        #endregion
-        #region Private Methods
-        /// <summary>
-        /// Deploys a search index.
-        /// </summary>
-        private async Task<IActionResult> DeployIndexAsync(bool trueForVectorizedFalseForVectorizable)
-        {
-#if DEBUG
             //initialization
-            string indexName = trueForVectorizedFalseForVectorizable ? FSPKConstants.Search.Indexes.Vectorized : FSPKConstants.Search.Indexes.Foundry;
-            this._logger.LogInformation($"Handling create search index {indexName} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointDocumentsSearchTopographyAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //deploy
-            string result = trueForVectorizedFalseForVectorizable ? await this._searchService.EnsureVectorizedIndexAsync(indexName)
-                                                                  : await this._searchService.EnsureVectorizableBlobIndexAsync(indexName, FSPKConstants.Search.Indexes.Images);
+            string result = await this._searchService.EnsureSharePointDocumentsSearchTopographyAsync(deleteExisting);
 
             //return
             if (string.IsNullOrWhiteSpace(result))
-                return this.Ok($"Search index {indexName} deployed successfully.");
+                return this.Ok($"Search index {FSPKConstants.Search.Indexes.Documents} deployed successfully.");
             else
-                return this.StatusCode(500, $"Failed to deploy search: {result}");
-#else
+                return this.StatusCode(500, $"Failed to deploy Foundry SharePoint document search: {result}");
+        }
+
+        /// <summary>
+        /// Deploys an Azure Search index populated from SharePoint webhooks.
+        /// </summary>
+        [HttpPut(FSPKConstants.Routing.API.DeploySharePointListItemsSearchTopography)]
+        public async Task<IActionResult> DeploySharePointListItemsSearchTopographyAsync([FromRoute()] bool deleteExisting = true)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling {nameof(this.DeploySharePointListItemsSearchTopographyAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+
             //return
-            await Task.Yield();
-            return this.StatusCode(403, "Search deployment is only allowed locally.");
-#endif
+            string result = await this._searchService.EnsureSharePointListItemsSearchTopographyAsync(deleteExisting);
+            if (string.IsNullOrWhiteSpace(result))
+                return this.Ok($"Search index {FSPKConstants.Search.Indexes.ListItems} deployed successfully.");
+            else
+                return this.StatusCode(500, $"Failed to deploy Foundry SharePoint list item search: {result}");
+        }
+
+        /// <summary>
+        /// Migrates blobs and tables from one Azure Storage Account to another.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.MigrateStorageAccount)]
+        public async Task<IActionResult> MigrateStorageAccountAsync([FromBody] MigrateStorageAccountRequest request)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling {nameof(this.MigrateStorageAccountAsync)} request from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            //return
+            MigrateStorageAccountResult result = await this._searchService.MigrateStorageAccountAsync(request);
+            if (result.IsSuccessful)
+                return this.Ok($"Successfully performed {request}.");
+            else
+                return this.StatusCode(500, $"Failed to perform {request}: {result}");
         }
         #endregion
     }
