@@ -13,7 +13,7 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
     public record SearchToolDefinition : IToolDefintion
     {
         #region Initialization
-        public SearchToolDefinition(string searchServiceName, string resourceId, string adminKey, string indexName, AzureAISearchQueryType? queryType, string filter, int? topK)
+        public SearchToolDefinition(string displayName, string searchServiceName, string resourceId, string adminKey, string indexName, AzureAISearchQueryType? queryType, string filter, int? topK)
         {
             //initialization
             this.TopK = topK;
@@ -22,6 +22,7 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
             this.IndexName = indexName;
             this.QueryType = queryType;
             this.ResourceId = resourceId;
+            this.DisplayName = displayName;
             this.SearchServiceName = searchServiceName;
         }
         #endregion
@@ -31,6 +32,7 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
         public string AdminKey { get; init; }
         public string IndexName { get; init; }
         public string ResourceId { get; init; }
+        public string DisplayName { get; init; }
         public string SearchServiceName { get; init; }
         public AzureAISearchQueryType? QueryType { get; init; }
 
@@ -63,7 +65,7 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
             //add metadata
             connection.Metadata.Add(nameof(ResourceId), this.ResourceId);
             connection.Metadata.Add(FSPKConstants.Foundry.Tools.APIType, nameof(Azure));
-            connection.Metadata.Add(FSPKConstants.Foundry.Tools.DisplayName, this.SearchServiceName);
+            connection.Metadata.Add(FSPKConstants.Foundry.Tools.DisplayName, this.DisplayName);
             connection.Metadata.Add(FSPKConstants.Foundry.Tools.Type, FSPKConstants.Foundry.Tools.SearchType);
 
             //return

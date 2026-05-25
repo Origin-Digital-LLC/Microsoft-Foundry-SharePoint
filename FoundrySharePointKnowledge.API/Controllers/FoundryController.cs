@@ -119,7 +119,7 @@ namespace FoundrySharePointKnowledge.API.Controllers
             this._logger.LogInformation($"Handling request to {nameof(this.PromoteFoundryAgentsAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
 
             //migrate agents
-            MigrateAgentsResponse response = await this._foundryService.MigrateAgentsAsync(request, this._entraIdSettings.ToCredential());
+            MigrateAgentsResponse response = await this._foundryService.PromoteAgentsAsync(request, this._entraIdSettings.ToCredential());
 
             //return
             if (response.IsSuccessful)

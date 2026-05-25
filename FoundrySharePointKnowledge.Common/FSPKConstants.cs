@@ -118,6 +118,7 @@ namespace FoundrySharePointKnowledge.Common
 
                 public static class ApplicationInsights
                 {
+                    public const string ResourceId = "app-insights-resource-id";
                     public const string ConnectionString = "app-insights-connection-string";
                     public const string InstrumentationKey = "app-insights-instramentation-key";
                 }
@@ -310,7 +311,6 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class ChatCompletion
             {
-                public const int TimeoutMinutes = 1;
                 public const string UserMessage = "userMessage";
                 public const string SystemMessage = "systemMessage";
                 public const string EndpointFormat = "{0}" + Routing.Foundry.OpenAIDeployments + "{1}/chat/completions?api-version={2}";

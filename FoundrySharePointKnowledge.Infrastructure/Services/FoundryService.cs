@@ -71,8 +71,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             Dictionary<string, EngineerBio> engineers = new Dictionary<string, EngineerBio>();
             AgentReference agentReference = new AgentReference(FSPKConstants.Workflows.ExpertiseWorkflow);
 
+            //get clients
+            ProjectOpenAIClient openAIClient = foundryClient.GetProjectOpenAIClient();
+            ProjectConversationsClient conversationsClient = openAIClient.GetProjectConversationsClient();
+
             //create conversation
-            ProjectConversation conversation = await foundryClient.OpenAI.Conversations.CreateProjectConversationAsync();
+            ProjectConversation conversation = await conversationsClient.CreateProjectConversationAsync();
             using (this._logger.BeginScope(new Dictionary<string, object>
             {
                 //assemble dictionary
@@ -80,7 +84,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }))
             {
                 //excute workflow
-                ProjectResponsesClient responseClient = foundryClient.OpenAI.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
+                ProjectResponsesClient responseClient = openAIClient.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
                 ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt);
                 int step = 0;
 
@@ -167,6 +171,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             HashSet<string> annotations = new HashSet<string>();
             AIProjectClient foundryClient = this.GetFoundryClient(foundryCredential);
 
+            //get openAI clients
+            ProjectOpenAIClient openAIClient = foundryClient.GetProjectOpenAIClient();
+            AgentAdministrationClient agentsClient = foundryClient.GetProjectAgentsClient();
+            ProjectConversationsClient conversationsClient = openAIClient.GetProjectConversationsClient();
+
             try
             {
                 //get agent                
@@ -174,8 +183,9 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 {
                     //hr
                     case Agent.HR:
+
                         //get agent
-                        AgentRecord agentRecord = await foundryClient.Agents.GetAgentAsync(FSPKConstants.Agents.HR);
+                        ProjectsAgentRecord agentRecord = await agentsClient.GetAgentAsync(FSPKConstants.Agents.HR);
                         if (agentRecord == null)
                             throw new Exception($"Agent {FSPKConstants.Agents.HR} was not found.");
 
@@ -198,7 +208,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 if (string.IsNullOrWhiteSpace(prompt.ConversationId))
                 {
                     //create conversation
-                    conversation = await foundryClient.OpenAI.Conversations.CreateProjectConversationAsync();
+                    conversation = await conversationsClient.CreateProjectConversationAsync();
 
                     //track conversation id
                     prompt.ConversationId = conversation.Id;
@@ -207,7 +217,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 else
                 {
                     //resume conversation
-                    conversation = await foundryClient.OpenAI.Conversations.GetProjectConversationAsync(prompt.ConversationId);
+                    conversation = await conversationsClient.GetProjectConversationAsync(prompt.ConversationId);
                     this._logger.LogInformation($"Resuming {agent.Name} conversation {prompt.ConversationId}.");
                 }
 
@@ -221,7 +231,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 }))
                 {
                     //send the user's message to the agent
-                    ProjectResponsesClient responseClient = foundryClient.OpenAI.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
+                    ProjectResponsesClient responseClient = openAIClient.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
                     ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt.UserMessage);
 
                     //get agent responses
@@ -269,9 +279,9 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         }
 
         /// <summary>
-        /// Moves agents from one foundry project to another.
+        /// Promotes agents from one Foundry project to another.
         /// </summary>
-        public async Task<MigrateAgentsResponse> MigrateAgentsAsync(MigrateAgentsRequest migrateAgentsRequest, TokenCredential foundryCredential)
+        public async Task<MigrateAgentsResponse> PromoteAgentsAsync(MigrateAgentsRequest migrateAgentsRequest, TokenCredential foundryCredential)
         {
             //initialization
             MigrateAgentsResponse result = new MigrateAgentsResponse();
@@ -305,10 +315,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
             try
             {
-                //create clients and get secrets
+                //create ARM and foundry clients
                 ArmClient armClient = new ArmClient(foundryCredential);
                 AIProjectClient sourceFoundryClient = new AIProjectClient(sourceFoundryProjectURI, foundryCredential);
                 AIProjectClient destinationFoundryClient = new AIProjectClient(destinationFoundryProjectURI, foundryCredential);
+
+                //create agent clients
+                AgentAdministrationClient sourceAgentsClient = sourceFoundryClient.GetProjectAgentsClient();
+                AgentAdministrationClient destinationAgentsClient = destinationFoundryClient.GetProjectAgentsClient();
 
                 //this parses a project connection name as the last segment of an azure resource id
                 string destinationResourceGroupName = migrateAgentsRequest.DestinationResourceGroupName;
@@ -339,6 +353,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     return uri?.ToString()?.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)?.LastOrDefault();
                 }
 
+                //this gets a resource name from a resource id
+                string getResourceName(string resourceId)
+                {
+                    //retrn
+                    return resourceId?.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)?.LastOrDefault();
+                }
+
                 //get foundry metadata
                 string sourceFoundryAccountName = getFoundryAccountName(sourceFoundryProjectURI);
                 string sourceFoundryProjectName = getFoundryProjectName(sourceFoundryProjectURI);
@@ -348,6 +369,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //prepare data structures
                 List<MigratableAgent> sourceAgents = new List<MigratableAgent>();
                 Dictionary<string, string> workflows = new Dictionary<string, string>();
+                Dictionary<string, string> connectionLookup = new Dictionary<string, string>();
+                Dictionary<string, string> reverseConnectionLookup = new Dictionary<string, string>();
                 Dictionary<string, string> destinationKeyValueSecrets = new Dictionary<string, string>();
                 Dictionary<string, IToolDefintion> toolDefinitions = new Dictionary<string, IToolDefintion>();
 
@@ -361,43 +384,60 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //get source foundry models
                 CognitiveServicesAccountDeploymentCollection sourceDeployments = sourceAccount.GetCognitiveServicesAccountDeployments();
-                await foreach (CognitiveServicesAccountDeploymentResource deployment in sourceDeployments.GetAllAsync())
-                    sourceModels.Add(deployment.Data);
+                await foreach (CognitiveServicesAccountDeploymentResource sourceDeployment in sourceDeployments.GetAllAsync())
+                    sourceModels.Add(sourceDeployment.Data);
 
                 //get source app insights connections
-                await foreach (AIProjectConnection sourceAppInisghtsConnection in sourceFoundryClient.Connections.GetConnectionsAsync(ConnectionType.ApplicationInsights))
+                await foreach (AIProjectConnection sourceAppInsightsConnection in sourceFoundryClient.Connections.GetConnectionsAsync(ConnectionType.ApplicationInsights))
                 {
                     //check tool
-                    if (!toolDefinitions.ContainsKey(sourceAppInisghtsConnection.Name))
+                    if (!toolDefinitions.ContainsKey(sourceAppInsightsConnection.Name))
                     {
                         //get api key
-                        AIProjectConnection projectConnection = await sourceFoundryClient.Connections.GetConnectionAsync(sourceAppInisghtsConnection.Name, true);
-                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString, out string sourceAppInisghtsConnectionString))
+                        AIProjectConnection sourceProjectConnection = await sourceFoundryClient.Connections.GetConnectionAsync(sourceAppInsightsConnection.Name, true);
+                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString, out string destinationAppInisghtsConnectionString))
                         {
                             //use source connection string
-                            collectWarning($"Application Insights connection {projectConnection.Name} will use the source connection string since {FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
-                            AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
-                            sourceAppInisghtsConnectionString = apiCredentials.ApiKey;
+                            collectWarning($"Application Insights connection {sourceProjectConnection.Name} will use the source connection string since {FSPKConstants.Settings.KeyVault.ApplicationInsights.ConnectionString} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                            AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)sourceProjectConnection.Credentials;
+                            destinationAppInisghtsConnectionString = apiCredentials.ApiKey;
                         }
 
-                        //collect app insights connections
-                        toolDefinitions.Add(sourceAppInisghtsConnection.Name, new ProjectTelemetryDefinition(sourceAppInisghtsConnectionString, projectConnection.Target));
+                        //get resource id
+                        if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.ApplicationInsights.ResourceId, out string destinationAppInsightsResourceId))
+                        {
+                            //use source resource id
+                            collectWarning($"Application Insights connection {sourceProjectConnection.Name} will use the source target resource since {FSPKConstants.Settings.KeyVault.ApplicationInsights.ResourceId} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                            destinationAppInsightsResourceId = sourceProjectConnection.Target;
+                        }
+
+                        //get connection name
+                        string destinationAppInsightsConnectionName = getResourceName(destinationAppInsightsResourceId);
+
+                        //collect app insights connection
+                        connectionLookup.Add(destinationAppInsightsConnectionName, sourceAppInsightsConnection.Name);
+                        reverseConnectionLookup.Add(sourceAppInsightsConnection.Name, destinationAppInsightsConnectionName);
+                        toolDefinitions.Add(sourceAppInsightsConnection.Name, new ProjectTelemetryDefinition(destinationAppInisghtsConnectionString, destinationAppInsightsResourceId));
                     }
                 }
 
                 //get source agents
-                await foreach (AgentRecord agent in sourceFoundryClient.Agents.GetAgentsAsync())
+                await foreach (ProjectsAgentRecord sourceAgent in sourceAgentsClient.GetAgentsAsync())
                 {
                     //get each agent's latest version to determine its type
-                    AgentVersion latestVersion = agent.GetLatestVersion();
+                    ProjectsAgentVersion latestVersion = sourceAgent.GetLatestVersion();
                     MigratableAgent migratableAgent = new MigratableAgent(latestVersion);
 
                     //check agent definition
-                    if (latestVersion.Definition is PromptAgentDefinition)
+                    if (latestVersion.Definition is DeclarativeAgentDefinition)
                     {
-                        //get prompt agent tools
-                        AgentTool[] tools = ((PromptAgentDefinition)migratableAgent.Definition).Tools.Select(t => t.AsAgentTool()).ToArray();
-                        foreach (AgentTool tool in tools)
+                        //set agent model
+                        DeclarativeAgentDefinition definition = (DeclarativeAgentDefinition)migratableAgent.Definition;
+                        migratableAgent.ModelName = definition.Model;
+
+                        //get declaritive agent tools
+                        ProjectsAgentTool[] tools = definition.Tools.Select(t => t.AsAgentTool()).ToArray();
+                        foreach (ProjectsAgentTool tool in tools)
                         {
                             //get each tool
                             if (tool is SharepointPreviewTool)
@@ -413,15 +453,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 if (!toolDefinitions.ContainsKey(projectConnection.Name))
                                 {
                                     //get site collectoin url
-                                    if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.SharePoint.SiteCollectionURL, out string siteCollectionURL))
+                                    if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.SharePoint.SiteCollectionURL, out string sourceSiteCollectionURL))
                                     {
                                         //use source sharepoint site collection url
-                                        siteCollectionURL = ((AIProjectConnectionCustomCredential)projectConnection.Credentials).Keys.Values.First();
+                                        sourceSiteCollectionURL = ((AIProjectConnectionCustomCredential)projectConnection.Credentials).Keys.Values.First();
                                         collectWarning($"SharePoint connection {projectConnection.Name} will use the source site collection URL since {FSPKConstants.Settings.KeyVault.SharePoint.SiteCollectionURL} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
                                     }
 
                                     //create sharepoint tool definition
-                                    toolDefinitions.Add(projectConnection.Name, new SharePointToolDefinition(siteCollectionURL));
+                                    toolDefinitions.Add(projectConnection.Name, new SharePointToolDefinition(sourceSiteCollectionURL));
                                 }
                             }
                             else if (tool is AzureAISearchTool)
@@ -431,17 +471,17 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 {
                                     //get azure ai search connection
                                     AIProjectConnection projectConnection = await sourceFoundryClient.Connections.GetConnectionAsync(getConnectionName(index.ProjectConnectionId), true);
-                                    string searchConnectionName = $"{projectConnection.Name}-{index.IndexName}";
-                                    migratableAgent.ToolNames.Add(searchConnectionName);
+                                    string sourceSearchConnectionName = $"{projectConnection.Name}-{index.IndexName}";
+                                    migratableAgent.ToolNames.Add(sourceSearchConnectionName);
 
                                     //check tool
-                                    if (!toolDefinitions.ContainsKey(searchConnectionName))
+                                    if (!toolDefinitions.ContainsKey(sourceSearchConnectionName))
                                     {
                                         //get api key
                                         if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.Search.Key, out string azureAISearchAdminKey))
                                         {
                                             //use source azure ai search admin key
-                                            collectWarning($"Azure AI Search index connection {searchConnectionName} will use the source admin key since {FSPKConstants.Settings.KeyVault.Search.Key} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                                            collectWarning($"Azure AI Search index connection {sourceSearchConnectionName} will use the source admin key since {FSPKConstants.Settings.KeyVault.Search.Key} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
                                             AIProjectConnectionApiKeyCredential apiCredentials = (AIProjectConnectionApiKeyCredential)projectConnection.Credentials;
                                             azureAISearchAdminKey = apiCredentials.ApiKey;
                                         }
@@ -450,25 +490,34 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                         if (!destinationKeyValueSecrets.TryGetValue(FSPKConstants.Settings.KeyVault.Search.ResourceId, out string azureAISearchResourceId))
                                         {
                                             //use source azure ai search resource id
-                                            collectWarning($"Azure AI Search index connection {searchConnectionName} will use the source resource id since {FSPKConstants.Settings.KeyVault.Search.ResourceId} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
+                                            collectWarning($"Azure AI Search index connection {sourceSearchConnectionName} will use the source resource id since {FSPKConstants.Settings.KeyVault.Search.ResourceId} wasn't found in the destination Key Vault ({migrateAgentsRequest.DestinationKeyVaultURL}).");
                                             azureAISearchResourceId = projectConnection.Metadata[FSPKConstants.Foundry.Tools.ResourceId];
                                         }
 
+                                        //parse destination tool connection
+                                        string destinationToolDisplayName = getResourceName(azureAISearchResourceId);
+                                        string destinationSearchConnectionName = $"{destinationToolDisplayName}-{index.IndexName}";
+
+                                        //map to source tool connection
+                                        connectionLookup.Add(destinationSearchConnectionName, sourceSearchConnectionName);
+                                        reverseConnectionLookup.Add(sourceSearchConnectionName, destinationSearchConnectionName);
+
                                         //create azure ai search tool definition
-                                        toolDefinitions.Add(searchConnectionName, new SearchToolDefinition(projectConnection.Metadata[FSPKConstants.Foundry.Tools.DisplayName],
-                                                                                                           azureAISearchResourceId,
-                                                                                                           azureAISearchAdminKey,
-                                                                                                           index.IndexName,
-                                                                                                           index.QueryType,
-                                                                                                           index.Filter,
-                                                                                                           index.TopK));
+                                        toolDefinitions.Add(sourceSearchConnectionName, new SearchToolDefinition(destinationSearchConnectionName,
+                                                                                                                destinationToolDisplayName,
+                                                                                                                azureAISearchResourceId,
+                                                                                                                azureAISearchAdminKey,
+                                                                                                                index.IndexName,
+                                                                                                                index.QueryType,
+                                                                                                                index.Filter,
+                                                                                                                index.TopK));
                                     }
                                 }
                             }
                             else
                             {
                                 //unsupported tool
-                                collectWarning($"Agent {agent.Name} has a tool of type {tool.GetType().Name} which is not currently supported in migrations.");
+                                collectWarning($"Agent {sourceAgent.Name} has a unsupported tool of type {tool.GetType().Name}.");
                             }
                         }
                     }
@@ -484,7 +533,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     else
                     {
                         //unsupported
-                        throw new Exception($"Agent {agent.Name} has an unsupported definition of type {latestVersion.Definition.GetType().Name}.");
+                        throw new Exception($"Agent {sourceAgent.Name} has an unsupported definition of type {latestVersion.Definition.GetType().Name}.");
                     }
 
                     //collect agents
@@ -497,66 +546,68 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //get destination connections
                 List<CognitiveServicesProjectConnectionResource> destinationConnections = new List<CognitiveServicesProjectConnectionResource>();
-                await foreach (CognitiveServicesProjectConnectionResource connection in destinationProjectConnections.GetAllAsync())
-                    destinationConnections.Add(connection);
+                await foreach (CognitiveServicesProjectConnectionResource destinationConnection in destinationProjectConnections.GetAllAsync())
+                    destinationConnections.Add(destinationConnection);
 
                 //process destination connections
-                foreach (CognitiveServicesProjectConnectionResource connection in destinationConnections)
+                foreach (CognitiveServicesProjectConnectionResource destinationConnection in destinationConnections)
                 {
                     //check tool
-                    if (toolDefinitions.ContainsKey(connection.Data.Name))
+                    string destinationConnectionName = destinationConnection.Data.Name;
+                    if (toolDefinitions.ContainsKey(destinationConnectionName) || (connectionLookup.ContainsKey(destinationConnectionName) && toolDefinitions.ContainsKey(connectionLookup[destinationConnectionName])))
                     {
                         //tool already exists
                         if (migrateAgentsRequest.ForceChanges)
                         {
                             //delete
-                            await connection.DeleteAsync(WaitUntil.Completed);
-                            this._logger.LogInformation($"Deleted existing destination connection {connection.Data.Name} since force changes is enabled for this migration.");
+                            await destinationConnection.DeleteAsync(WaitUntil.Completed);
+                            this._logger.LogInformation($"Deleted existing destination connection {destinationConnectionName} since force changes is enabled for this migration.");
                         }
                         else
                         {
                             //duplicate
-                            collectWarning($"Destination connection {connection.Data.Name} already exists, and force changes is disabled for this migration.");
+                            collectWarning($"Destination connection {destinationConnectionName} already exists, and force changes is disabled for this migration.");
                             continue;
                         }
                     }
                 }
 
                 //create destination connections
-                foreach (string toolName in toolDefinitions.Keys)
+                foreach (string sourceToolName in toolDefinitions.Keys)
                 {
                     try
                     {
                         //create connection
-                        IToolDefintion tool = toolDefinitions[toolName];
-                        CognitiveServicesConnectionData connection = tool.CreateConnection();
-                        ArmOperation<CognitiveServicesProjectConnectionResource> connectionResult = await destinationProjectConnections.CreateOrUpdateAsync(WaitUntil.Completed, toolName, connection);
+                        IToolDefintion destinationTool = toolDefinitions[sourceToolName];
+                        CognitiveServicesConnectionData destinationConnection = destinationTool.CreateConnection();
+                        string destinationToolName = reverseConnectionLookup.GetValueOrDefault(sourceToolName, sourceToolName);
+                        ArmOperation<CognitiveServicesProjectConnectionResource> connectionResult = await destinationProjectConnections.CreateOrUpdateAsync(WaitUntil.Completed, destinationToolName, destinationConnection);
 
                         //check result
                         if (connectionResult.HasValue)
                         {
                             //success
-                            result.SuccessfulConnections.Add(toolName);
-                            this._logger.LogInformation($"Successfully created destinaton connection {toolName}.");
+                            result.SuccessfulConnections.Add(destinationToolName);
+                            this._logger.LogInformation($"Successfully created destinaton connection {destinationToolName}.");
                         }
                         else
                         {
                             //error
-                            collectError($"Unable to create destination connection {toolName}: {connectionResult.GetRawResponse().Content.ToString()}");
+                            collectError($"Unable to create destination connection {destinationToolName}: {connectionResult.GetRawResponse().Content.ToString()}");
                         }
                     }
                     catch (Exception ex)
                     {
                         //error
-                        collectError($"Failed to migrate connection {toolName}.", ex);
+                        collectError($"Failed to migrate destination connection {sourceToolName}.", ex);
                     }
                 }
 
                 //get destination foundry account
                 CognitiveServicesAccountResource destinationAccount = armClient.GetCognitiveServicesAccountResource(CognitiveServicesAccountResource.CreateResourceIdentifier(this._foundryProjectSettings.SubscriptionId, destinationResourceGroupName, destinationFoundryAccountName));
                 CognitiveServicesAccountDeploymentCollection destinationDeployments = destinationAccount.GetCognitiveServicesAccountDeployments();
+                Dictionary<string, ProjectsAgentVersion> exitingDestinationAgents = new Dictionary<string, ProjectsAgentVersion>();
                 Dictionary<string, AzureAISearchToolIndex> destinationIndexes = new Dictionary<string, AzureAISearchToolIndex>();
-                Dictionary<string, AgentVersion> exitingDestinationAgents = new Dictionary<string, AgentVersion>();
 
                 //get destination deployments
                 Dictionary<string, CognitiveServicesAccountDeploymentResource> destinationModels = new Dictionary<string, CognitiveServicesAccountDeploymentResource>();
@@ -592,7 +643,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         string error = $"Unable to create destination model {sourceModel.Name}: {rawError}";
 
                         //return
-                        if (sourceAgents.Any(a => a.ToolNames.Contains(sourceModel.Name)))
+                        if (sourceAgents.Any(a => a.ModelName == sourceModel.Name))
                             collectError(error);
                         else
                             collectWarning(error);
@@ -629,81 +680,81 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     }
                 }
 
-                //get destination agents               
-                await foreach (AgentRecord agent in destinationFoundryClient.Agents.GetAgentsAsync())
-                    exitingDestinationAgents.Add(agent.Name, agent.GetLatestVersion());
+                //get destination agents
+                await foreach (ProjectsAgentRecord destinationAgent in destinationAgentsClient.GetAgentsAsync())
+                    exitingDestinationAgents.Add(destinationAgent.Name, destinationAgent.GetLatestVersion());
 
                 //create destination agents
-                foreach (MigratableAgent agent in sourceAgents.OrderBy(a => a.IsWorkflow))
+                foreach (MigratableAgent sourceAgent in sourceAgents.OrderBy(a => a.IsWorkflow))
                 {
                     //check agent
-                    if (exitingDestinationAgents.ContainsKey(agent.Name))
+                    if (exitingDestinationAgents.ContainsKey(sourceAgent.Name))
                     {
                         //agent exists
                         if (migrateAgentsRequest.ForceChanges)
                         {
                             //delete
-                            await destinationFoundryClient.Agents.DeleteAgentAsync(agent.Name);
-                            this._logger.LogInformation($"Deleted existing destination agent {agent.Name} since force changes is enabled for this migration.");
+                            await destinationAgentsClient.DeleteAgentAsync(sourceAgent.Name);
+                            this._logger.LogInformation($"Deleted existing destination agent {sourceAgent.Name} since force changes is enabled for this migration.");
                         }
                         else
                         {
                             //duplicate
-                            collectWarning($"Destination agent {agent.Name} already exists, and force changes is disabled for this migration.");
+                            collectWarning($"Destination agent {sourceAgent.Name} already exists, and force changes is disabled for this migration.");
                             continue;
                         }
                     }
 
                     //check workflow
-                    if (agent.IsWorkflow)
+                    if (sourceAgent.IsWorkflow)
                     {
                         //create workflow definition
-                        WorkflowAgentDefinition sourceWorkflowDefinition = (WorkflowAgentDefinition)agent.Definition;
-                        WorkflowAgentDefinition destinationWorkflowDefinition = WorkflowAgentDefinition.FromYaml(agent.WorkflowYaml);
-                        destinationWorkflowDefinition.ContentFilterConfiguration = sourceWorkflowDefinition.ContentFilterConfiguration;
+                        WorkflowAgentDefinition sourceWorkflowDefinition = (WorkflowAgentDefinition)sourceAgent.Definition;
+                        WorkflowAgentDefinition destinationWorkflowDefinition = WorkflowAgentDefinition.FromYaml(sourceAgent.WorkflowYaml);
 
                         try
                         {
                             //create workflow
-                            ClientResult<AgentVersion> workflowResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationWorkflowDefinition)
+                            destinationWorkflowDefinition.ContentFilterConfiguration = sourceWorkflowDefinition.ContentFilterConfiguration;
+                            ClientResult<ProjectsAgentVersion> workflowResult = await destinationAgentsClient.CreateAgentVersionAsync(sourceAgent.Name, new ProjectsAgentVersionCreationOptions(destinationWorkflowDefinition)
                             {
                                 //assemble object
-                                Description = agent.Description
+                                Description = sourceAgent.Description
                             });
 
                             //check result
                             if (workflowResult?.Value == null)
                             {
                                 //error
-                                collectError($"Unable to create destination workflow {agent}: {workflowResult.GetRawResponse().Content.ToString()}");
+                                collectError($"Unable to create destination workflow {sourceAgent}: {workflowResult.GetRawResponse().Content.ToString()}");
                             }
                             else
                             {
                                 //success
-                                result.SuccessfulWorkflows.Add(agent.Name);
-                                this._logger.LogInformation($"Successfully migrated workflow {agent}.");
+                                result.SuccessfulWorkflows.Add(sourceAgent.Name);
+                                this._logger.LogInformation($"Successfully migrated workflow {sourceAgent}.");
                             }
                         }
                         catch (Exception ex)
                         {
                             //error
-                            collectError($"Failed to migrate workflow {agent}.", ex);
+                            collectError($"Failed to migrate workflow {sourceAgent}.", ex);
                         }
                     }
                     else
                     {
                         //get agent definition
-                        if (agent.Definition is PromptAgentDefinition)
+                        if (sourceAgent.Definition is DeclarativeAgentDefinition)
                         {
                             //create agent definition
-                            PromptAgentDefinition sourceAgentDefinition = (PromptAgentDefinition)agent.Definition;
-                            PromptAgentDefinition destinationAgentDefinition = new PromptAgentDefinition(sourceAgentDefinition.Model);
+                            DeclarativeAgentDefinition sourceAgentDefinition = (DeclarativeAgentDefinition)sourceAgent.Definition;
+                            DeclarativeAgentDefinition destinationAgentDefinition = new DeclarativeAgentDefinition(sourceAgentDefinition.Model);
 
                             //check model
                             if (!result.SuccessfulModels.Contains(sourceAgentDefinition.Model))
                             {
                                 //error
-                                collectError($"Could not migrate destination agent {agent.Name} because its model {sourceAgentDefinition.Model} failed to deploy.");
+                                collectError($"Could not migrate destination agent {sourceAgent.Name} because its model {sourceAgentDefinition.Model} failed to deploy.");
                                 continue;
                             }
 
@@ -721,14 +772,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 destinationAgentDefinition.StructuredInputs.Add(structuredInputKey, sourceAgentDefinition.StructuredInputs[structuredInputKey]);
 
                             //add tools
-                            foreach (string toolName in agent.ToolNames)
+                            foreach (string sourceToolName in sourceAgent.ToolNames)
                             {
                                 //check tool
-                                IToolDefintion tool = toolDefinitions[toolName];
-                                if (!result.SuccessfulConnections.Contains(toolName))
+                                IToolDefintion tool = toolDefinitions[sourceToolName];
+                                string destinationToolName = reverseConnectionLookup.GetValueOrDefault(sourceToolName, sourceToolName);
+                                if (!result.SuccessfulConnections.Contains(sourceToolName) && !result.SuccessfulConnections.Contains(destinationToolName))
                                 {
                                     //error
-                                    collectError($"Could not migrate destination agent {agent.Name} because its {sourceAgentDefinition.Model} connection failed to provision.");
+                                    collectError($"Could not migrate destination agent {sourceAgent.Name}'s {sourceAgentDefinition.Model} tool because its connection failed to provision.");
                                     continue;
                                 }
 
@@ -740,7 +792,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                     if (!destinationIndexes.ContainsKey(searchTool.IndexName))
                                     {
                                         //create search index connection
-                                        AIProjectConnection destinationSearchConnection = await destinationFoundryClient.Connections.GetConnectionAsync(toolName);
+                                        AIProjectConnection destinationSearchConnection = await destinationFoundryClient.Connections.GetConnectionAsync(destinationToolName);
                                         destinationIndexes.Add(searchTool.IndexName, new AzureAISearchToolIndex()
                                         {
                                             //assemble object
@@ -760,7 +812,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                     //create sharepoint tool
                                     SharePointToolDefinition sharePointTool = (SharePointToolDefinition)tool;
                                     SharePointGroundingToolOptions sharePointToolParameters = new SharePointGroundingToolOptions();
-                                    AIProjectConnection destinationSharePointConnection = await destinationFoundryClient.Connections.GetConnectionAsync(toolName);
+                                    AIProjectConnection destinationSharePointConnection = await destinationFoundryClient.Connections.GetConnectionAsync(destinationToolName);
 
                                     //add sharepoint tool
                                     sharePointToolParameters.ProjectConnections.Add(new ToolProjectConnection(destinationSharePointConnection.Id));
@@ -769,7 +821,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 else
                                 {
                                     //unsupported tool
-                                    collectError($"Unable to add tool {toolName} to agent {agent}: {tool.GetType().Name} is unsupported.");
+                                    collectError($"Unable to add tool {destinationToolName} to agent {sourceAgent}: {tool.GetType().Name} is unsupported.");
                                     continue;
                                 }
                             }
@@ -777,29 +829,29 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                             try
                             {
                                 //create agent
-                                ClientResult<AgentVersion> agentResult = await destinationFoundryClient.Agents.CreateAgentVersionAsync(agent.Name, new AgentVersionCreationOptions(destinationAgentDefinition)
+                                ClientResult<ProjectsAgentVersion> agentResult = await destinationAgentsClient.CreateAgentVersionAsync(sourceAgent.Name, new ProjectsAgentVersionCreationOptions(destinationAgentDefinition)
                                 {
                                     //assemble object
-                                    Description = agent.Description
+                                    Description = sourceAgent.Description,
                                 });
 
                                 //check result
                                 if (agentResult?.Value == null)
                                 {
                                     //eror
-                                    collectError($"Unable to create destination agent {agent}: {agentResult?.GetRawResponse()?.Content?.ToString() ?? "N/A"}");
+                                    collectError($"Unable to create destination agent {sourceAgent}: {agentResult?.GetRawResponse()?.Content?.ToString() ?? "N/A"}");
                                 }
                                 else
                                 {
                                     //success
-                                    result.SuccessfulAgents.Add(agent.Name);
-                                    this._logger.LogInformation($"Successfully migrated agent {agent}.");
+                                    result.SuccessfulAgents.Add(sourceAgent.Name);
+                                    this._logger.LogInformation($"Successfully migrated agent {sourceAgent}.");
                                 }
                             }
                             catch (Exception ex)
                             {
                                 //error
-                                collectError($"Failed to migrate agent {agent.Name}.", ex);
+                                collectError($"Failed to migrate agent {sourceAgent.Name}.", ex);
                             }
                         }
                     }

@@ -1363,7 +1363,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //delete existing index
                 this._logger.LogWarning($"Deleting existing index {indexName}.");
-                await this._searchIndexClient.DeleteIndexAsync(indexName);
+                await this._searchIndexClient.DeleteIndexAsync(indexName, null);
                 await this.WaitForAdminOperationAsync();
             }
 
@@ -1398,7 +1398,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //delete existing indexer
                 this._logger.LogWarning($"Deleting existing indexer {indexerName}.");
-                await this._searchIndexerClient.DeleteIndexerAsync(indexerName);
+                await this._searchIndexerClient.DeleteIndexerAsync(indexerName, null);
 
                 //return
                 await this.WaitForAdminOperationAsync();
@@ -1418,7 +1418,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //delete existing data source
                 this._logger.LogWarning($"Deleting existing data source {dataSourceName}.");
-                await this._searchIndexerClient.DeleteDataSourceConnectionAsync(dataSourceName);
+                await this._searchIndexerClient.DeleteDataSourceConnectionAsync(dataSourceName, null);
 
                 //return
                 await this.WaitForAdminOperationAsync();
@@ -1438,7 +1438,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //delete existing skillset
                 this._logger.LogWarning($"Deleting existing skillset {skillsetName}.");
-                await this._searchIndexerClient.DeleteSkillsetAsync(skillsetName);
+                await this._searchIndexerClient.DeleteSkillsetAsync(skillsetName, null);
 
                 //return
                 await this.WaitForAdminOperationAsync();
@@ -1806,20 +1806,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 }
             });
         }
-
-        /// <summary>
-        /// Adds an open ai vectorizer to a search index.
-        /// </summary>
-        private void AddAzureVisionVectorizer(SearchIndex index, string name)
-        {
-            //return
-            index.VectorSearch.Vectorizers.Add(new AIServicesVisionVectorizer(name)
-            {
-                //assemble object
-                AIServicesVisionParameters = new AIServicesVisionParameters(this._foundrySettings.VisionModelVersion, this._foundrySettings.DocumentIntelligenceEndpoint)
-            });
-        }
-
+        
         /// <summary>
         /// Adds a non-vector field to the index.
         /// </summary>
@@ -1940,7 +1927,6 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             if (!useSentences)
             {
                 //configure pages
-                splitSkill.Unit = SplitSkillUnit.Characters;
                 splitSkill.PageOverlapLength = FSPKConstants.Search.Chunking.PageOverlapLength;
                 splitSkill.MaximumPagesToTake = FSPKConstants.Search.Chunking.MaximumPagesToTake;
             }
@@ -2051,36 +2037,6 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         }
 
         /// <summary>
-        /// Creates an image embedding skill.
-        /// </summary>
-        private VisionVectorizeSkill CreateAzureVisionEmbeddingSkill(string context)
-        {
-            //return
-            return new VisionVectorizeSkill(
-            [
-                //assemble array
-                new InputFieldMappingEntry(FSPKConstants.Search.Abstration.Image)
-                {
-                    //assemble object
-                    Source = context
-                }
-            ],
-            [
-                //assemble array
-                new OutputFieldMappingEntry(FSPKConstants.Search.Abstration.Vector)
-                {
-                    //assemble object
-                    TargetName = FSPKConstants.Search.Abstration.ImageVector
-                }
-            ], this._foundrySettings.VisionModelVersion)
-            {
-                //assemble object
-                Context = context,
-                Name = FSPKConstants.Search.Skills.ImageEmbeddingSkill
-            };
-        }
-
-        /// <summary>
         /// Creates an LLM chat completion skill for image verbalization.
         /// </summary>
         private ChatCompletionSkill CreateImageVerbalizationSkill(string context, string systemMessage, string userMessage)
@@ -2112,15 +2068,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     //assemble object
                     TargetName = FSPKConstants.Search.Abstration.VerbalizedImage
                 }
-            ], string.Format(FSPKConstants.Search.ChatCompletion.EndpointFormat, this._foundrySettings.DocumentIntelligenceEndpoint, this._foundrySettings.LLMModel, this._foundrySettings.ChatCompletionAPIVersion)
+            ], new Uri(string.Format(FSPKConstants.Search.ChatCompletion.EndpointFormat, this._foundrySettings.DocumentIntelligenceEndpoint, this._foundrySettings.LLMModel, this._foundrySettings.ChatCompletionAPIVersion))
             )
             {
                 //assemble object                    
                 Context = context,
-                HttpMethod = FSPKConstants.HTTP.Post,
                 ApiKey = this._foundrySettings.AccountKey,
-                Name = FSPKConstants.Search.Skills.ChatCompletion,
-                Timeout = TimeSpan.FromMinutes(FSPKConstants.Search.ChatCompletion.TimeoutMinutes)
+                Name = FSPKConstants.Search.Skills.ChatCompletion
             };
         }
 
