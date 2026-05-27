@@ -1,4 +1,6 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry
+﻿using FoundrySharePointKnowledge.Domain.Foundry.Agents;
+
+namespace FoundrySharePointKnowledge.Domain.Foundry.Conversations
 {
     /// <summary>
     /// This represents a user talking to an agent.

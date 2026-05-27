@@ -1,4 +1,4 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry
+﻿namespace FoundrySharePointKnowledge.Domain.Foundry.Conversations
 {
     /// <summary>
     /// This is an engineer bio populated from a Foundry workflow.

@@ -21,6 +21,7 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string Version = "ver";
                 public const string Audience = "aud";
+                public const double ClockSkewMinutes = 5;
                 public const string APIAudience = "api://";
                 public const string Scope = "access_as_user";
                 public const string Issuer = "https://sts.windows.net/";
@@ -356,9 +357,42 @@ namespace FoundrySharePointKnowledge.Common
         {
             public const string Client = nameof(Foundry);
             public const string EncodingFormat = "float";
-            public const string ModelId = "prebuilt-layout";
+            public const string PrebuiltLayout = "prebuilt-layout";
             public const string WorkflowYaml = nameof(WorkflowYaml);
             public const string Scope = "https://ai.azure.com/user_impersonation";
+
+            public static class Agents
+            {
+                public static class HR
+                {
+                    public const string ShortName = "hr-agent";
+                    public const string DisplayName = "HR Agent";
+                }
+
+                public static class CSVAnalyzer
+                {
+                    public const string ShortName = "CSV-Analyzer";
+                    public const string DisplayName = "CSV Analyzer";
+                }
+
+                public static class XMLAnalyzer
+                {
+                    public const string ShortName = "XML-Analyzer";
+                    public const string DisplayName = "XML Analyzer";
+                }
+            }
+
+            public static class Workflows
+            {
+                public const string JSONTerminator = "```";
+                public const string JSONDelimiter = "json" + Workflows.JSONTerminator;
+
+                public static class ExpertiseFinder
+                {
+                    public const string ShortName = "expertise-workflow";
+                    public const string DisplayName = "Expertise Finder";
+                }
+            }
 
             public static class Tools
             {
@@ -371,6 +405,18 @@ namespace FoundrySharePointKnowledge.Common
                 public const string ResourceId = nameof(ResourceId);
                 public const string AppInsights = nameof(AppInsights);
                 public const string SharePointGrounding = "sharepoint_grounding_preview";
+            }
+
+            public static class VectorStores
+            {
+                public const int MaxIndexingChecks = 200;
+                public const int BatchPollingWaitMilliseconds = 2 * 1000;
+                public const string MachineTelemetry = "machine-telemetry";
+            }
+
+            public static class Prompts
+            {
+                public const string AnalyzeFilesFormat = "Analyze all files whose names start with: {0}.";
             }
         }
 
@@ -416,6 +462,7 @@ namespace FoundrySharePointKnowledge.Common
             public const string TXT = ".txt";
             public const string PPT = ".ppt";
             public const string CSV = ".csv";
+            public const string XML = ".xml";
             public const string XLSX = ".xlsx";
             public const string DOCX = ".docx";
             public const string PPTX = ".pptx";
@@ -441,9 +488,9 @@ namespace FoundrySharePointKnowledge.Common
                 public const string VectorizeImage = "vectorize-image";
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
+                public const string EnsureVectorStore = "ensure-vector-store";
                 public const string DeleteExisting = "/{deleteExisting:bool=true}";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
-                public const string MigrateCopilotAgents = "migrate-copilot-agents";
                 public const string MigrateStorageAccount = "migrate-storage-account";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
                 public const string DeploySharePointDocumentsSearchTopography = "deploy-sharepoint-documents-search-topography" + API.DeleteExisting;

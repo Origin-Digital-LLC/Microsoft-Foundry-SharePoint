@@ -2,7 +2,9 @@
 using System.Linq;
 using System.Collections.Generic;
 
-namespace FoundrySharePointKnowledge.Domain.Foundry
+using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
+
+namespace FoundrySharePointKnowledge.Domain.Foundry.Agents
 {
     /// <summary>
     /// This represents a Foundry agent's response in a conversation.
@@ -10,18 +12,18 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
     public record AgentResponse<T>
     {
         #region Initialization
-        public AgentResponse(T message, string conversationId = null, IEnumerable<string> annotations = null)
+        public AgentResponse(T message, string conversationId = null, IEnumerable<Annotation> annotations = null)
         {
             //initialization
             this.Message = message;
             this.ConversationId = conversationId;
-            this.Annotations = annotations?.ToArray() ?? Array.Empty<string>();
+            this.Annotations = annotations?.ToArray() ?? Array.Empty<Annotation>();
         }
         #endregion
         #region Properties
         public T Message { get; init; }
-        public string[] Annotations { get; init; }
         public string ConversationId { get; init; }
+        public Annotation[] Annotations { get; init; }
         #endregion
         #region Public Methods
         public override string ToString()

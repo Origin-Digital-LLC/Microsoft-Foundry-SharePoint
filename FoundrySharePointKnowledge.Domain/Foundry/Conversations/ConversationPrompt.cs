@@ -1,4 +1,6 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry
+﻿using FoundrySharePointKnowledge.Domain.Foundry.Agents;
+
+namespace FoundrySharePointKnowledge.Domain.Foundry.Conversations
 {
     /// <summary>
     /// This represents a user talking to an agent in a conversation.
@@ -6,7 +8,7 @@
     public record ConversationPrompt : Prompt
     {
         #region Initialization
-        public ConversationPrompt(Agent agent, string userMessage, string conversationId) : base(agent, userMessage)
+        public ConversationPrompt(Agent agent, string userMessage, string conversationId = null) : base(agent, userMessage)
         {
             //initialization
             this.ConversationId = conversationId;

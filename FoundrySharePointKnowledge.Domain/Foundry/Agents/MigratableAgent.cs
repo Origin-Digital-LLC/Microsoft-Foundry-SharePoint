@@ -2,7 +2,7 @@
 
 using Azure.AI.Projects.Agents;
 
-namespace FoundrySharePointKnowledge.Domain.Foundry
+namespace FoundrySharePointKnowledge.Domain.Foundry.Agents
 {
     /// <summary>
     /// This holds the metadata needed to migrate an angent from one Foundry project to another.

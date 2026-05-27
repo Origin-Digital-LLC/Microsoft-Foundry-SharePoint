@@ -1,6 +1,5 @@
 ﻿using Azure.ResourceManager.CognitiveServices;
-
-using FoundrySharePointKnowledge.Domain.Foundry;
+using FoundrySharePointKnowledge.Domain.Foundry.Tools;
 
 namespace FoundrySharePointKnowledge.Domain.Contracts
 {

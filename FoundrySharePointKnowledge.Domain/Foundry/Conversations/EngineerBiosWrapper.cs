@@ -1,6 +1,8 @@
 ﻿using System.Linq;
 
-namespace FoundrySharePointKnowledge.Domain.Foundry
+using FoundrySharePointKnowledge.Common;
+
+namespace FoundrySharePointKnowledge.Domain.Foundry.Conversations
 {
     /// <summary>
     /// This is a wrapper around a JSON array of engineer bios
@@ -15,7 +17,7 @@ namespace FoundrySharePointKnowledge.Domain.Foundry
         {
             //return
             if (this.Engineers?.Any() ?? false)
-                return $"{this.Engineers.Length} eningeer(s)";
+                return $"{this.Engineers.Pluralize("eningeer")}";
             else
                 return "No engineers";
         }

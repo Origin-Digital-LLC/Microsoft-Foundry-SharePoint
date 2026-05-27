@@ -109,7 +109,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 throw new Exception($"Search query {query} failed: {searchError}");
 
             //process results
-            this._logger.LogInformation($"Found {response.Value.TotalCount} result(s) for {query}.");
+            this._logger.LogInformation($"Found {response.Value.TotalCount.GetValueOrDefault(0).Pluralize("result")} for {query}.");
             await foreach (SearchResult<VectorizedChunk> result in response.Value.GetResultsAsync())
                 results.Add(result.Document);
 
@@ -336,7 +336,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         if (!documentsToDelete.Any())
                             throw new Exception($"{documentErrorMessage}search results: file not found");
                         else
-                            this._logger.LogInformation($"Found {documentsToDelete.Count} document chunk(s) and {documentIds.Count} image chunk(s) to delete.");
+                            this._logger.LogInformation($"Found {documentsToDelete.Pluralize("document chunk")}  and {documentIds.Pluralize("image chunk")} to delete.");
 
                         //delete documents
                         Response<IndexDocumentsResult> deleteDocumentsResult = await this._searchClients[FSPKConstants.Search.Indexes.Documents].DeleteDocumentsAsync(keyField, documentsToDelete);
@@ -344,7 +344,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                         if (!string.IsNullOrWhiteSpace(deleteDocumentsError))
                             throw new Exception($"{documentErrorMessage}index delete: {deleteDocumentsError}");
                         else
-                            this._logger.LogInformation($"Deleted {documentsToDelete.Count} document chunk(s) from {FSPKConstants.Search.Indexes.Documents}.");
+                            this._logger.LogInformation($"Deleted {documentsToDelete.Pluralize("document chunk")} from {FSPKConstants.Search.Indexes.Documents}.");
 
                         //delete images
                         foreach (string documentId in documentIds)
@@ -387,7 +387,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 if (!imagesToDelete.Any())
                                     throw new Exception($"{imageSearchError}search results: file not found");
                                 else
-                                    this._logger.LogInformation($"Found {imagesToDelete.Count} extracted image(s) to delete.");
+                                    this._logger.LogInformation($"Found {imagesToDelete.Pluralize("extracted image")} to delete.");
 
                                 //delete image documents
                                 Response<IndexDocumentsResult> deleteImagesResult = await this._searchClients[FSPKConstants.Search.Indexes.Images].DeleteDocumentsAsync(keyField, imagesToDelete);
@@ -395,7 +395,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 if (!string.IsNullOrWhiteSpace(deleteImagesError))
                                     throw new Exception($"{imageErrorMessage}index delete: {deleteImagesError}");
                                 else
-                                    this._logger.LogInformation($"Deleted {imagesToDelete.Count} extracted image(s) from {FSPKConstants.Search.Indexes.Images}.");
+                                    this._logger.LogInformation($"Deleted {imagesToDelete.Pluralize("extracted image")} from {FSPKConstants.Search.Indexes.Images}.");
 
                                 //delete table entity
                                 Response deleteImageResult = await metadataTable.DeleteEntityAsync(imageTableEntity.PartitionKey, imageTableEntity.RowKey);
@@ -1029,7 +1029,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 throw new ArgumentNullException(nameof(payload));
 
             //build resuls
-            this._logger.LogInformation($"Proper casing {payload.Values.Length} value(s).");
+            this._logger.LogInformation($"Proper casing {payload.Values.Pluralize("value")}.");
             List<WebAPISkillData<ProperCaseOutput>> results = new List<WebAPISkillData<ProperCaseOutput>>();
 
             //this ensures a string has proper casing and spacing
@@ -1088,7 +1088,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
 
             //return
-            this._logger.LogInformation($"Proper cased {results.Count} value(s).");
+            this._logger.LogInformation($"Proper cased {results.Pluralize("value")}.");
             return new WebAPISkillPayload<ProperCaseOutput>()
             {
                 //assemble array
@@ -1272,10 +1272,12 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             List<SPFileChunk> fileChunks = new List<SPFileChunk>();
             double[] titleVector = await this.VectorizeTextAsync(file.Title);
 
-            //send file to Foundry for analysis
+            //load file
             byte[] fileContents = await this._sharePointService.GetFileContentsMostPrivilegedAsync(file);
-            this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
-            AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.ModelId, new BinaryData(fileContents));
+            this._logger.LogInformation($"Analyzing file {file.Name} using {FSPKConstants.Foundry.PrebuiltLayout}.");
+
+            //send file to Foundry for analysis
+            AnalyzeDocumentOptions options = new AnalyzeDocumentOptions(FSPKConstants.Foundry.PrebuiltLayout, new BinaryData(fileContents));
             Operation<AnalyzeResult> result = await this._documentIntelligenceClient.AnalyzeDocumentAsync(WaitUntil.Completed, options);
 
             //check result
@@ -1285,7 +1287,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 foreach (DocumentPage page in result.Value.Pages)
                 {
                     //collect each line
-                    this._logger.LogInformation($"Vectorizing page {page.PageNumber} of file {file.Name} using {FSPKConstants.Foundry.ModelId}.");
+                    this._logger.LogInformation($"Vectorizing page {page.PageNumber} of file {file.Name} using {FSPKConstants.Foundry.PrebuiltLayout}.");
                     StringBuilder contentBuilder = new StringBuilder();
                     foreach (DocumentLine line in page.Lines)
                         contentBuilder.AppendLine(line.Content);

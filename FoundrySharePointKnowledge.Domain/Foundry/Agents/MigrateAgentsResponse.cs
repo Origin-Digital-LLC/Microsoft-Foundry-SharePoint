@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using System.Collections.Generic;
 
-namespace FoundrySharePointKnowledge.Domain.Foundry
+namespace FoundrySharePointKnowledge.Domain.Foundry.Agents
 {
     /// <summary>
     /// Tracks the results of a Foundry agent migration.

@@ -1,4 +1,4 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry
+﻿namespace FoundrySharePointKnowledge.Domain.Foundry.Agents
 {
     /// <summary>
     /// This shapes the request to migrate Foundry agents.

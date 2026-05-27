@@ -1,11 +1,10 @@
 ﻿using Azure.AI.Projects.Agents;
 using Azure.ResourceManager.CognitiveServices;
 using Azure.ResourceManager.CognitiveServices.Models;
-
 using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Contracts;
 
-namespace FoundrySharePointKnowledge.Domain.Foundry
+namespace FoundrySharePointKnowledge.Domain.Foundry.Tools
 {
     /// <summary>
     /// This holds the settings for an Azure AI Search tool.

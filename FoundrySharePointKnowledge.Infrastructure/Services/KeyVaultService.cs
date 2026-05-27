@@ -65,7 +65,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 throw new Exception($"Unable to get all Key Vault {secretClient.VaultUri} secrets: {error}");
 
             //return
-            this._logger.LogInformation($"Found {getSecretsTasks.Count} secret(s) from {secretClient.VaultUri}.");
+            this._logger.LogInformation($"Found {getSecretsTasks.Pluralize("secret")} from {secretClient.VaultUri}.");
             return getSecretsTasks.ToDictionary(k => k.Result.Value.Name, v => this.GetSecretValue(v));
         }
 

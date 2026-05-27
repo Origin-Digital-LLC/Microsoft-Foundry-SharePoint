@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -6,12 +7,15 @@ using System.Reflection;
 using System.ClientModel;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 using Azure;
 using Azure.Core;
 using Azure.AI.Projects;
+using Azure.Storage.Blobs;
 using Azure.ResourceManager;
 using Azure.AI.Projects.Agents;
+using Azure.Storage.Blobs.Models;
 using Azure.AI.Extensions.OpenAI;
 using Azure.ResourceManager.CognitiveServices;
 using ConnectionType = Azure.AI.Projects.ConnectionType;
@@ -22,8 +26,13 @@ using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Foundry;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
+using FoundrySharePointKnowledge.Domain.Foundry.Agents;
+using FoundrySharePointKnowledge.Domain.Foundry.Tools;
+using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
 
+using OpenAI.Files;
 using OpenAI.Responses;
+using OpenAI.VectorStores;
 
 #pragma warning disable AAIP001
 #pragma warning disable OPENAI001
@@ -36,18 +45,24 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
     public class FoundryService : IFoundryService
     {
         #region Members
+        private readonly BlobServiceClient _blobClient;
         private readonly ILogger<FoundryService> _logger;
+        private readonly EntraIDSettings _entraIDSettings;
         private readonly IKeyVaultService _keyVaultService;
         private readonly FoundryProjectSettings _foundryProjectSettings;
 
         #endregion
         #region Initialization
-        public FoundryService(ILogger<FoundryService> logger,
+        public FoundryService(BlobServiceClient blobClient, 
+                              ILogger<FoundryService> logger,
+                              EntraIDSettings entraIDSettings,
                               IKeyVaultService keyVaultService,
                               FoundryProjectSettings foundryProjectSettings)
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this._blobClient = blobClient ?? throw new ArgumentNullException(nameof(blobClient));
+            this._entraIDSettings = entraIDSettings ?? throw new ArgumentNullException(nameof(entraIDSettings));
             this._keyVaultService = keyVaultService ?? throw new ArgumentNullException(nameof(keyVaultService));
             this._foundryProjectSettings = foundryProjectSettings ?? throw new ArgumentNullException(nameof(foundryProjectSettings));
         }
@@ -80,12 +95,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             using (this._logger.BeginScope(new Dictionary<string, object>
             {
                 //assemble dictionary
+                { "Workflow Prompt", prompt },
+                { "Workflow Name", agentReference.Name },
                 { $"Workflow {nameof(conversation)}", conversation.Id }
             }))
             {
                 //excute workflow
                 ProjectResponsesClient responseClient = openAIClient.GetProjectResponsesClientForAgent(agentReference, conversation.Id);
                 ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt);
+                response.EnsureSuccess($"Failed to run workflow {agentReference.Name}.", this._logger);
                 int step = 0;
 
                 //get all agent response messages from the workflow's conversation
@@ -168,8 +186,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             AgentReference agent = null;
             string agentId = string.Empty;
             StringBuilder answer = new StringBuilder();
-            HashSet<string> annotations = new HashSet<string>();
             AIProjectClient foundryClient = this.GetFoundryClient(foundryCredential);
+            Dictionary<string, Annotation> annotations = new Dictionary<string, Annotation>();
 
             //get openAI clients
             ProjectOpenAIClient openAIClient = foundryClient.GetProjectOpenAIClient();
@@ -233,6 +251,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     //send the user's message to the agent
                     ProjectResponsesClient responseClient = openAIClient.GetProjectResponsesClientForAgent(agent, prompt.ConversationId);
                     ClientResult<ResponseResult> response = await responseClient.CreateResponseAsync(prompt.UserMessage);
+                    response.EnsureSuccess($"Failed to run agent {agent.Name}.", this._logger);
 
                     //get agent responses
                     foreach (MessageResponseItem outputItem in response.Value.OutputItems.OfType<MessageResponseItem>())
@@ -257,17 +276,48 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                             //collect annotations
                             foreach (ResponseMessageAnnotation annotation in content.OutputTextAnnotations)
                             {
-                                //since the data source is sharepoint, only consider URL citations
-                                if (annotation.Kind == ResponseMessageAnnotationKind.UriCitation)
-                                    annotations.Add(((UriCitationMessageAnnotation)annotation).Uri.ToString());
-                                else
-                                    this._logger.LogInformation($"Ignoring {annotation.Kind} annotation.");
+                                //determine annotation type
+                                string title = string.Empty;
+                                string link = string.Empty;
+                                switch (annotation.Kind)
+                                {
+                                    //uri
+                                    case ResponseMessageAnnotationKind.UriCitation:
+                                        UriCitationMessageAnnotation uriAnnotation = (UriCitationMessageAnnotation)annotation;
+                                        link = uriAnnotation.Uri.ToString();
+                                        title = uriAnnotation.Title;
+                                        break;
+
+                                    //file
+                                    case ResponseMessageAnnotationKind.FileCitation:
+                                        FileCitationMessageAnnotation fileAnnotation = (FileCitationMessageAnnotation)annotation;
+                                        title = fileAnnotation.Filename;
+                                        link = fileAnnotation.FileId;
+                                        break;
+
+                                    //path
+                                    case ResponseMessageAnnotationKind.FilePath:
+                                        FilePathMessageAnnotation pathAnnotation = (FilePathMessageAnnotation)annotation;
+                                        title = pathAnnotation.FileId;
+                                        link = pathAnnotation.FileId;
+                                        break;
+
+                                    //container
+                                    case ResponseMessageAnnotationKind.ContainerFileCitation:
+                                        ContainerFileCitationMessageAnnotation containerCitation = (ContainerFileCitationMessageAnnotation)annotation;
+                                        title = containerCitation.Filename;
+                                        link = containerCitation.FileId;
+                                        break;
+                                }
+
+                                //ignore duplicate sources
+                                annotations.TryAdd(link.ToLowerInvariant(), new Annotation(title, link));
                             }
                         }
                     }
 
                     //return
-                    return new AgentResponse<string>(answer.ToString().Trim(), prompt.ConversationId, annotations);
+                    return new AgentResponse<string>(answer.ToString().Trim(), prompt.ConversationId, annotations.Values);
                 }
             }
             catch (Exception ex)
@@ -854,6 +904,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                                 collectError($"Failed to migrate agent {sourceAgent.Name}.", ex);
                             }
                         }
+                        else
+                        {
+                            //unsupported
+                            collectWarning($"Source agent {sourceAgent.Name} could not be migrated because it is of an unsupported type {sourceAgent.GetType().Name}.");
+                        }
                     }
                 }
             }
@@ -866,8 +921,299 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             //return
             return result;
         }
+
+        /// <summary>
+        /// Ensures a vector store exists by name and returns its id.
+        /// </summary>
+        public async Task<string> EnsureVectorStoreAsync(string name)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(name);
+            string message = $" vector store {name}.";
+
+            try
+            {
+                //get foundry clients
+                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+                VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+                //there is no option to query on name, so check all vector stores
+                this._logger.LogInformation($"Getting{message}");
+                IAsyncEnumerator<VectorStore> vectorStores = vectorStoreClient.GetVectorStoresAsync().GetAsyncEnumerator();
+
+                //find by name
+                while (await vectorStores.MoveNextAsync())
+                    if (vectorStores.Current.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase))
+                        return vectorStores.Current.Id;
+
+                //not found - create new
+                ClientResult<VectorStore> vectorStore = await vectorStoreClient.CreateVectorStoreAsync(new VectorStoreCreationOptions()
+                {
+                    //assemble object
+                    Name = name
+                });
+
+                //return
+                vectorStore.EnsureSuccess($"Failed to create{message}", this._logger);
+                this._logger.LogInformation($"Created{message}");
+                return vectorStore.Value.Id;
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to ensure{message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Calls an agent to reason over files whose names start with the given prefix.
+        /// </summary>
+        public async Task<string> AnalyzeFilesInContainerAsync(AnalyzeFilesRequest analyzeFilesRequest, FoundryCredential foundryCredential)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(analyzeFilesRequest);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(analyzeFilesRequest.ContainerName);
+            this._logger.LogInformation($"Starting file upload and analysis of {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $"/{analyzeFilesRequest.FilePrefix}")}.");
+
+            try
+            {
+                //get container
+                ConcurrentDictionary<Agent, string> agentPrompts = new ConcurrentDictionary<Agent, string>();
+                BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(analyzeFilesRequest.ContainerName);
+                ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>> blobs = new ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>>();
+
+                //download all blobs
+                await containerClient.CreateIfNotExistsAsync();
+                await foreach (BlobItem blob in containerClient.GetBlobsAsync(new GetBlobsOptions()
+                {
+                    //assemble object                
+                    Prefix = analyzeFilesRequest.FilePrefix
+                }))
+                {
+                    //download each blob
+                    this._logger.LogInformation($"Downloading {blob.Name}.");
+                    blobs.TryAdd(blob.Name, containerClient.GetBlobClient(blob.Name).DownloadContentAsync());
+                }
+
+                //wait for work to finish
+                AggregateException downloadError = await blobs.Values.WhenAllAsync();
+                if (downloadError != null)
+                    throw downloadError;
+
+                //get blob contents
+                Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+                foreach (string fileName in blobs.Keys)
+                {
+                    //check each file
+                    Response<BlobDownloadResult> file = blobs[fileName].Result;
+                    string error = await file.GetResponseErrorAsync($"Failed to download {fileName} from {containerClient.Uri}.");
+
+                    //collect each file
+                    if (!string.IsNullOrWhiteSpace(error))
+                        throw new Exception(error);
+                    else
+                        files.Add(fileName, file.Value.Content.ToArray());
+                }
+
+                //upload files
+                ConcurrentDictionary<string, string> fileIds = await this.UploadVecorStoreFilesAsync(files, (fileName) =>
+                {
+                    //determine file type
+                    string fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
+                    string prefix = $"{analyzeFilesRequest.ContainerName}-{fileExtension.TrimStart('.').ToUpperInvariant()}";
+
+                    //convert file to JSON
+                    switch (fileExtension)
+                    {
+                        //csv
+                        case FSPKConstants.Extensions.CSV:
+                            agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.CSVAnalyzer : analyzeFilesRequest.Agent, prefix);
+                            break;
+
+                        //xml
+                        case FSPKConstants.Extensions.XML:
+                            agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.XMLAnalyzer : analyzeFilesRequest.Agent, prefix);
+                            break;
+
+                        //not supported
+                        default:
+                            this._logger.LogWarning($"{fileName} does not have a valid extension.");
+                            break;
+                    }
+                });
+
+                //index files
+                string vectorStoreId = await this.EnsureVectorStoreAsync(analyzeFilesRequest.VectorStoreName);
+                string batchId = await this.IndexVectorStoreFilesAsync(vectorStoreId, fileIds);
+
+                //start answer
+                ConcurrentDictionary<Agent, string> agentResponses = new ConcurrentDictionary<Agent, string>();
+                StringBuilder answerBuilder = new StringBuilder($"Analysis of file batch {batchId}");
+                answerBuilder.AppendLine();
+
+                //analyze files
+                await Parallel.ForEachAsync(agentPrompts, new ParallelOptions()
+                {
+                    //assemble object
+                    MaxDegreeOfParallelism = agentPrompts.Count
+                }, async (agentPrompt, _) =>
+                {
+                    //get agent response
+                    ConversationPrompt conversationPrompt = new ConversationPrompt(agentPrompt.Key, string.Format(FSPKConstants.Foundry.Prompts.AnalyzeFilesFormat, agentPrompt.Value));
+                    AgentResponse<string> agentResponse = await this.ConverseWithAgentAsync(conversationPrompt, foundryCredential);
+
+                    //check agent response
+                    if (string.IsNullOrWhiteSpace(agentResponse?.Message))
+                    {
+                        //error
+                        agentResponses.TryAdd(agentPrompt.Key, "N/A");
+                        this._logger.LogError($"Got an empty response for agent {agentPrompt.Key.GetDisplayShortName()} for prompt {conversationPrompt.UserMessage}.");
+                    }
+                    else
+                    {
+                        //capture agent response
+                        agentResponses.TryAdd(agentPrompt.Key, agentResponse.Message);
+                    }
+                });
+
+                //finish answer
+                foreach (Agent agent in agentResponses.Keys)
+                {
+                    //separate responses
+                    if (answerBuilder.Length > 0)
+                        answerBuilder.AppendLine();
+
+                    //build agent header
+                    answerBuilder.AppendLine($"{agent.GetDisplayName()} Agent Analysis");
+                    answerBuilder.AppendLine();
+
+                    //append answer
+                    answerBuilder.AppendLine(agentResponses[agent]);
+                }
+
+                //return
+                return answerBuilder.ToString();
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to analyze files in blob container {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $" with prefix {analyzeFilesRequest.FilePrefix}")}.");
+                throw;
+            }
+        }
         #endregion
         #region Private Methods
+        /// <summary>
+        /// Uploads a batch of JSON files to a vector store.
+        /// </summary>
+        private async Task<ConcurrentDictionary<string, string>> UploadVecorStoreFilesAsync(Dictionary<string, byte[]> files, Action<string> fileCallback)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(files);
+            ConcurrentDictionary<string, string> fileIds = new ConcurrentDictionary<string, string>();
+            string message = $" {files.Pluralize("file")} to {this._foundryProjectSettings.ProjectEndpoints[0].ToString()}.";
+
+            try
+            {
+                //get foundry clients
+                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+                OpenAIFileClient fileClient = openAIClient.GetOpenAIFileClient();
+                this._logger.LogInformation($"Starting to upload{message}.");
+
+                //get all files
+                await Parallel.ForEachAsync(files, new ParallelOptions()
+                {
+                    //assemble object
+                    MaxDegreeOfParallelism = FSPKConstants.AzureStorage.Blobs.Parallelism
+                }, async (file, _) =>
+                {
+                    //upload each file
+                    fileCallback(file.Key);
+                    string fileName = $"{file.Key.Replace('/', '-')}{FSPKConstants.Extensions.TXT}";
+                    ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(new MemoryStream(file.Value), fileName, FileUploadPurpose.Assistants);
+
+                    //check file
+                    uploadedFile.EnsureSuccess($"Failed to upload {file.Key}", this._logger);
+                    fileIds.TryAdd(fileName, uploadedFile.Value.Id);
+                });
+
+                //return
+                this._logger.LogInformation($"Successfully uploaded{message}");
+                return fileIds;
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to upload{message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Waits for a batch of files in a Foundry vector store to be indexed.
+        /// </summary>
+        private async Task<string> IndexVectorStoreFilesAsync(string vectorStoreId, ConcurrentDictionary<string, string> fileIds)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(fileIds);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
+            string message = $"Foundry vector store {vectorStoreId} indexing of {fileIds.Pluralize("file")}";
+
+            try
+            {
+                //get foundry clients
+                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+                VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+                //start batched indexing operation
+                VectorStoreFileBatch batch = await vectorStoreClient.AddFileBatchToVectorStoreAsync(vectorStoreId, fileIds.Values);
+                string batchId = batch.BatchId;
+                int checks = 0;
+
+                //poll batch
+                while (batch.Status == VectorStoreFileBatchStatus.InProgress)
+                {
+                    //simple timeout check
+                    checks++;
+                    if (checks >= FSPKConstants.Foundry.VectorStores.MaxIndexingChecks)
+                        throw new Exception($"{message} timed out after {(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds * checks).Pluralize("millisecond")}.");
+
+                    //poll until batch is completed
+                    await Task.Delay(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds);
+                    this._logger.LogInformation($"Batch {batchId} is still indexing files after {checks.Pluralize("check")}.");
+
+                    //refresh batch
+                    batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(batch.VectorStoreId, batchId);
+                }
+
+                //check result
+                if (batch.Status != VectorStoreFileBatchStatus.Completed)
+                {
+                    //error
+                    string error = $"Batch {batchId} failed with status: {batch.Status}.";
+                    this._logger.LogError(error);
+                    throw new Exception(error);
+                }
+                else
+                {
+                    //return
+                    this._logger.LogInformation($"Successfully completed {message} after {(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds * checks).Pluralize("millisecond")}.");
+                    return batchId;
+                }
+            }
+            catch (Exception ex)
+            {
+                //error
+                string error = $"Failed to complete {message}.";
+                this._logger.LogError(ex, error);
+                throw;
+            }
+        }
+
         /// <summary>
         /// Builds a foundry client with the given credential.
         /// </summary>

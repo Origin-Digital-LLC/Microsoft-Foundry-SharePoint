@@ -1,4 +1,4 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry
+﻿namespace FoundrySharePointKnowledge.Domain.Foundry.Tools
 {
     /// <summary>
     /// Identiies a migratble Foundry connection.
