@@ -546,7 +546,8 @@ namespace FoundrySharePointKnowledge.Common
         public static class OpenTelemetry
         {
             public const int MaxBodyLength = 8192;
-            public const string Tag = "http.request.body";
+            public const string BodyTag = "http.request.body";
+            public const string HeaderTagPrefix = "http.request.header.";
         }
     }
 }

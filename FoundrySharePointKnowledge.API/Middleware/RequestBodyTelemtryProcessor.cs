@@ -1,8 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 
 using FoundrySharePointKnowledge.Common;
 
@@ -11,7 +13,7 @@ using OpenTelemetry;
 namespace FoundrySharePointKnowledge.API.Middleware
 {
     /// <summary>
-    /// Exposes request bodies to Application Insights (via OpenTelemetry).
+    /// Exposes request bodies and headers to Application Insights (via OpenTelemetry).
     /// </summary>
     public class RequestBodyTelemtryProcessor : BaseProcessor<Activity>
     {
@@ -36,6 +38,10 @@ namespace FoundrySharePointKnowledge.API.Middleware
             if (request == null || request.Method != FSPKConstants.HTTP.Post)
                 return;
 
+            //log request headers
+            foreach (KeyValuePair<string, StringValues> header in request.Headers)
+                activity.SetTag($"{FSPKConstants.OpenTelemetry.HeaderTagPrefix}{header.Key.ToLowerInvariant()}", header.Value.ToString());
+
             //open request sream
             request.EnableBuffering();
             request.Body.Position = 0;
@@ -50,7 +56,7 @@ namespace FoundrySharePointKnowledge.API.Middleware
             string truncatedBody = (body?.Length ?? 0) > maxLength ? $"{body.Substring(0, maxLength)}..." : body;
 
             //return
-            activity.SetTag(FSPKConstants.OpenTelemetry.Tag, truncatedBody);
+            activity.SetTag(FSPKConstants.OpenTelemetry.BodyTag, truncatedBody);
         }
         #endregion
     }
