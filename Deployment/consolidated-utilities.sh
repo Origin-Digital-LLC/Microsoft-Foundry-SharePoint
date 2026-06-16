@@ -15,9 +15,10 @@
 # ═══════════════════════════════════════════════════════════════
 
 # ───────────────────────────────────────────────────────────────
-# Section 1: Core Utilities
+# Section 1: Core Utilities (add_extension, get_tenant_id, get_subscription_id)
 # ───────────────────────────────────────────────────────────────
 
+#Installs an extension if its not already available.
 function add_extension()
 {
 	#initialization
@@ -38,6 +39,7 @@ function add_extension()
 	fi
 }
 
+#Gets the first tenant id for the current user. [Returns: tenantId]
 function get_tenant_id()
 {
 	#initialization
@@ -48,6 +50,7 @@ function get_tenant_id()
 	echo "$tenantId";
 }
 
+#Gets the first subscription id for the current user. [Returns: subscriptionId]
 function get_subscription_id()
 {
 	#initialization
@@ -63,6 +66,7 @@ function get_subscription_id()
 # Section 2: Resource Group & Key Vault
 # ───────────────────────────────────────────────────────────────
 
+#Creates a resourec group by name if it doesn't already exist. [Returns: nothing]
 function ensure_resource_group()
 {
 	#initialization
@@ -86,6 +90,7 @@ function ensure_resource_group()
 	fi
 }
 
+#Creates a key vault instance by name if it doesn't already exist and optionally ensures access policies for a user and an admin. [Returns: nothing]
 function ensure_key_vault()
 {
 	#initialization
@@ -141,6 +146,7 @@ function ensure_key_vault()
 	fi     
 }
 
+#Creates a key vault access policy for an admin (full permissions). [Returns: nothing]
 function ensure_key_vault_admin_access_policy()
 {
 	#initialization
@@ -155,6 +161,7 @@ function ensure_key_vault_admin_access_policy()
 	echo "Granted admin $enterpriseAppObjectId access to key vault $name successfully." >&2;
 }
 
+#Creates a key vault access policy for a user (list and read secrets only). [Returns: nothing]
 function ensure_key_vault_user_access_policy()
 {
 	#initialization
@@ -169,6 +176,7 @@ function ensure_key_vault_user_access_policy()
 	echo "Granted user $enterpriseAppObjectId access to key vault $name successfully." >&2;
 }
 
+#Creates or updates (only if the value has changed) a key vault secret. [Returns: nothing]
 function ensure_key_vault_secret()
 {
 	#initialization
@@ -210,6 +218,7 @@ function ensure_key_vault_secret()
 	fi
 }
 
+#Creates an application insights instance by name if it doesn't already exist. [Returns: connectionString|instramentationKey|resourceId]
 function ensure_app_insights()
 {
 	#initialization
@@ -249,6 +258,7 @@ function ensure_app_insights()
 # Section 3: Storage Account
 # ───────────────────────────────────────────────────────────────
 
+#Creates a storage account instance by name if it doesn't already exist. [Returns: connectionString|accessKey|resourceId]
 function ensure_storage_account()
 {
 	#initialization
@@ -284,6 +294,7 @@ function ensure_storage_account()
   	echo "$connectionString|$accessKey|$resourceId";
 }
 
+#Creates a storage account container by name if it doesn't already exist. [Returns: nothing]
 function ensure_storage_account_container()
 {
 	#initialization
@@ -308,6 +319,7 @@ function ensure_storage_account_container()
 	fi
 }
 
+#Clears a storage account's blob CORS rules. [Returns: nothing]
 function clear_storage_account_blob_cors_rules()
 {
 	#initialization
@@ -322,6 +334,7 @@ function clear_storage_account_blob_cors_rules()
 	echo "Cleared storage account $storageAccountName blob CORS successfully." >&2;
 }
 
+#Adds a blob CORS rule to a storage account. [Returns: nothing]
 function add_storage_account_blob_cors_rule()
 {
 	#initialization
@@ -337,6 +350,7 @@ function add_storage_account_blob_cors_rule()
    	echo "Added storage account $storageAccountName blob CORS rule to $origins successfully." >&2;
 }
 
+#Enables blob soft delete for a storage account. [Returns: nothing]
 function enable_storage_account_blob_soft_delete()
 {
 	#initialization
@@ -348,6 +362,7 @@ function enable_storage_account_blob_soft_delete()
 	echo "Enabled blob soft delete for $storageAccountName successfully." >&2;
 }
 
+#Ensures a storage account has a static website configured. [Returns: url]
 function ensure_storage_account_static_website()
 {
 	#initialization
@@ -378,9 +393,10 @@ function ensure_storage_account_static_website()
 
 
 # ───────────────────────────────────────────────────────────────
-# Section 4: App Service & Web Apps
+# Section 4: App Service & Web Apps (all CORS variants)
 # ───────────────────────────────────────────────────────────────
 
+#Creates an Azure App Service Plan if one doesn't already exist. [Returns: Nothing]
 function ensure_app_service_plan()
 {
 	#initialization
@@ -407,6 +423,7 @@ function ensure_app_service_plan()
 	fi
 }
 
+#Creates an Azure Web App if one doesn't already exist. [Returns: principalId|url]
 function ensure_web_app()
 {
 	#initialization
@@ -482,6 +499,7 @@ function ensure_web_app()
 }
 
 # DEPRECATED: Use ensure_web_app_cors_azure + ensure_web_app_cors_dotnet instead.
+#Sets the CORS rules for a websie. [Returns: nothing]
 function ensure_web_app_cors()
 {
 	#initialization
@@ -505,6 +523,7 @@ function ensure_web_app_cors()
 	echo "Set CORS allowed origins to $origins for $name." >&2; 
 }
 
+#Sets the Azure CORS rules for a web app. [Returns: nothing]
 function ensure_web_app_cors_azure()
 {
 	#initialization
@@ -528,6 +547,7 @@ function ensure_web_app_cors_azure()
 	echo "Set Azure CORS allowed origins to $origins for $name." >&2; 
 }
 
+#Sets the ASP.NET Core CORS rules for a web app. [Returns: nothing]
 function ensure_web_app_cors_dotnet()
 {
 	#initialization
@@ -548,6 +568,7 @@ function ensure_web_app_cors_dotnet()
 	echo "Set ASP.NET Core CORS allowed origins to $origins for $name." >&2; 
 }
 
+#Creates an Azure Static Web App if one doesn't already exist. [Returns: principalId|url]
 function ensure_static_web_app()
 {
 	#initialization
@@ -591,6 +612,7 @@ function ensure_static_web_app()
 # Section 5: Azure AI Foundry
 # ───────────────────────────────────────────────────────────────
 
+#Creates a microsoft foundry instance by name if it doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|resourceId|inferenceEndpoint]
 function ensure_foundry()
 {
 	#initialization
@@ -670,6 +692,7 @@ function ensure_foundry()
   	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$resourceId|$inferenceEndpoint";
 }
 
+#Creates microsoft foundry portal and project instances by name if thet doesn't already exist. [Returns: accountKey|openAIEndpoint|documentIntelligenceEndpoint|projectEndpoint|resourceId|inferenceEndpoint]
 function ensure_foundry_project()
 {
 	#initialization
@@ -750,6 +773,7 @@ function ensure_foundry_project()
   	echo "$accountKey|$openAIEndpoint|$documentIntelligenceEndpoint|$projectEndpoint|$resourceId|$inferenceEndpoint";
 }
 
+#Deploys a microsoft foundry model by name if it doesn't already exist. [Returns: nothing]
 function ensure_foundry_model_deployment()
 {
 	#initialization
@@ -781,6 +805,7 @@ function ensure_foundry_model_deployment()
 # Section 6: Entra ID / Authentication
 # ───────────────────────────────────────────────────────────────
 
+#Gets a user's object by email. [Returns: objectId]
 function get_user_object_id()
 {	
 	#initialization
@@ -793,6 +818,7 @@ function get_user_object_id()
  	echo "$objectId";
 }
 
+#Gets the enterprise app object id from an app registration's app id. [Returns: objectId]
 function get_app_registration_enterprise_object_id()
 {
 	#initialization
@@ -804,6 +830,7 @@ function get_app_registration_enterprise_object_id()
  	echo "$objectId";
 }
 
+#Creates an Entra Id app registration by name if it doesn't already exist. [Returns: clientId|clientSecret]
 function ensure_entra_id_app_registration()
 {
 	#initialization
@@ -862,6 +889,7 @@ function ensure_entra_id_app_registration()
 	echo "$clientId|$clientSecret";
 }
 
+#Ensures a scope on an Entra Id app registration. [Returns: Nothing]
 function expose_entra_id_app_scope()
 {
 	#initialization
@@ -909,6 +937,7 @@ function expose_entra_id_app_scope()
 	echo "Exposed scope $name on Entra Id app $appId successfully." >&2;
 }
 
+#Grants and admin consents a permission to an entra id app registration if it doesn't already exist. [Returns: Nothing]
 function assign_entra_id_app_permission()
 {
 	#initialization
@@ -942,6 +971,7 @@ function assign_entra_id_app_permission()
 	fi
 }
 
+#Gets an access token from the given Entra Id app registration. [Returns: token]
 function acquire_access_token()
 {
 	#initialization
@@ -956,6 +986,7 @@ function acquire_access_token()
 	echo "$accessToken";
 }
 
+#Grants a service principal access to an Azure source under the given role. [Returns nothing]
 function ensure_rbac_access()
 {
 	#initialization
@@ -973,6 +1004,7 @@ function ensure_rbac_access()
 # Section 7: Miscellaneous (ACR, Postgres, Search, Fluid Relay)
 # ───────────────────────────────────────────────────────────────
 
+#Creates an azure container registry, environment, and instance by name if they don't already exist. [Returns: username|password|serverName|backendAppId|backendAppURL|frontendAppID|frontendAppURL|backendAppServicePrincipalId|frontendAppServicePrincipalId]
 function ensure_acr()
 {
 	#initialization
@@ -1073,6 +1105,7 @@ function ensure_acr()
   	echo "$username|$password|$serverName|$backendAppId|$backendAppURL|$frontendAppId|$frontendAppURL|$backendAppServicePrincipalId|$frontendAppServicePrincipalId";
 }
 
+#Creates a Cosmos DB Postgres server and database if they don't already exists. [Returns: dbHost|dbPassword]
 function ensure_postgres_cluster()
 {
 	#initialization
@@ -1106,6 +1139,7 @@ function ensure_postgres_cluster()
 	echo "$dbHost|$dbPassword";
 }
 
+#Creates an Azure Search instance if one doesn't already exist. [Returns: queryKey|adminKey|principalId|resourceId]
 function ensure_azure_search()
 {
 	#initialization
@@ -1150,6 +1184,7 @@ function ensure_azure_search()
   	echo "$queryKey|$adminKey|$principalId|$resourceId";
 }
 
+#Creates an Azure Fluid Relay if one doesn't already exist. [Returns: principalId|tenantId|endpoint|key|id]
 function ensure_fluid_relay()
 {
 	#initialization
@@ -1189,6 +1224,7 @@ function ensure_fluid_relay()
 # Section 8: API Integration Helpers
 # ───────────────────────────────────────────────────────────────
 
+#Creates an Entra ID app and client secret to use for GitHub actions that deploy an Azure web app. If the app already exists, the client secret is overwritten. [Returns: Nothing, but outputs the credentials to the screen.]
 function get_web_app_deployment_credential()
 {
 	#initialization
@@ -1203,6 +1239,7 @@ function get_web_app_deployment_credential()
 	echo $credentials >&2;
 }
 
+#Posts to a custom API endpoint. [Returns: response]
 function post_to_api()
 {
 	#initialization
@@ -1219,6 +1256,7 @@ function post_to_api()
 	echo "$response";
 }
 
+#Puts to a custom API endpoint without a body. [Returns: response]
 function put_to_api()
 {
 	#initialization
@@ -1234,6 +1272,7 @@ function put_to_api()
 	echo "$response";
 }
 
+#Polls the given resource's provisioning status. [Returns: 0 (Succeeded)  or 1 (Failed)]
 function wait_for_az_rest_command()
 {
 	#initialization
