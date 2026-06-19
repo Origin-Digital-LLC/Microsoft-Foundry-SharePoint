@@ -849,9 +849,12 @@ function ensure_entra_id_app_registration()
 		echo "Creating Entra Id app $name with secret expiration date $clientSecretEndDate." >&2;
 		appId=$(az ad app create --display-name $name --query "appId" --output "tsv" --only-show-errors);	
 
-  		#create service principal
+  		#wait for app to be provisioned
 		echo "Created Entra Id app $name successfully." >&2;
 		echo "Creating SPN for Entra Id app $name ($appId)." >&2;
+		sleep 30;
+		
+		#create service principal
 		local appSPNObjectId=$(az ad sp create --id $appId --query "id" --output "tsv" --only-show-errors);
   		objectId=$(az ad app list --query "[?displayName == '$name'].id" --output "tsv" --only-show-errors);
   
