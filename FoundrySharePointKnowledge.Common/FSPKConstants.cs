@@ -505,8 +505,11 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class Blazor
             {
+                public const string Home = "/";
                 public const string HR = "/hr";
                 public const string Expertise = "/expertise";
+                public const string Login = "authentication/login";
+                public const string Authentication = "authentication/{action}";
             }
         }
 
@@ -532,9 +535,9 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class Blazor
         {
-            public const string Head = "head::after";
             public const string Controller = "foundry";
             public const string ApplicationRoot = "#app";
+            public const string HeadOutlet = "head::after";
         }
 
         public static class API

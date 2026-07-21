@@ -1,0 +1,13 @@
+﻿@inherits LayoutComponentBase
+
+<AuthorizeView Context="authenticationContext">
+    <Authorized>
+        <h1>
+            @authenticationContext.User.Identity.Name
+        </h1>
+    </Authorized>
+</AuthorizeView>
+
+<div>
+    @this.Body
+</div>

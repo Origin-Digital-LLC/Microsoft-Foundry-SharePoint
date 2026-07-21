@@ -31,4 +31,5 @@
   <Project Path="FoundrySharePointKnowledge.Common/FoundrySharePointKnowledge.Common.csproj" />
   <Project Path="FoundrySharePointKnowledge.Domain/FoundrySharePointKnowledge.Domain.csproj" />
   <Project Path="FoundrySharePointKnowledge.Infrastructure/FoundrySharePointKnowledge.Infrastructure.csproj" />
+  <Project Path="FoundrySharePointKnowledge.Web/FoundrySharePointKnowledge.Web.csproj" Id="0368b1a0-1528-4d9a-8166-cc7c4ca77715" />
 </Solution>
