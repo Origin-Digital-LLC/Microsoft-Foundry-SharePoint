@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Authorization;
 
 namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 {

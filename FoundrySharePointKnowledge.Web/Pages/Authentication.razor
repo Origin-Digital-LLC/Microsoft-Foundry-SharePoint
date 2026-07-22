@@ -1,7 +1,7 @@
 @attribute [Route(FSPKConstants.Routing.Blazor.Authentication)]
 @inherits AuthenticationBase
 
-<RemoteAuthenticatorView Action=@this.Action OnLogInSucceeded=@this.OnLogInSucceeded Context="authenticationContext">
+<RemoteAuthenticatorView Action=@this.Action Context="authenticationContext">
     <LogInFailed>
         <p role="alert">Login failed: @authenticationContext</p>
     </LogInFailed>

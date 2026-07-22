@@ -507,6 +507,7 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string Home = "/";
                 public const string HR = "/hr";
+                public const string NotFound = "/not-found";
                 public const string Expertise = "/expertise";
                 public const string Login = "authentication/login";
                 public const string Authentication = "authentication/{action}";
