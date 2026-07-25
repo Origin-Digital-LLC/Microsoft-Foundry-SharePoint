@@ -1288,6 +1288,81 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 return new IndexFilesResponse(batch?.BatchId ?? "N/A", $"{error} {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Gets the progress of an ongoing Foundry vector store indexing operation.
+        /// </summary>
+        public async Task<IndexProgressResponse> GetIndexOperationProgressAsync(IndexProgressRequest indexProgressRequest)
+        {
+            //initialization
+            VectorStoreFileBatch batch = null;
+            ArgumentNullException.ThrowIfNull(indexProgressRequest);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(indexProgressRequest.BatchId);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(indexProgressRequest.VectorStoreId);
+            string message = $"Foundry vector store {indexProgressRequest.VectorStoreId} indexing of batch {indexProgressRequest.BatchId}";
+
+            try
+            {
+                //get foundry clients
+                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+                VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+                //get batch
+                batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(indexProgressRequest.VectorStoreId, indexProgressRequest.BatchId);
+
+                //return
+                if (batch == null)
+                    throw new Exception($"Batch {indexProgressRequest.BatchId} not found in vector store {indexProgressRequest.VectorStoreId}.");
+                else
+                    return new IndexProgressResponse(batch);
+            }
+            catch (Exception ex)
+            {
+                //error
+                string error = $"Failed to get status of{message}.";
+                this._logger.LogError(ex, error);
+
+                //return
+                return new IndexProgressResponse(error);
+            }
+        }
+
+        /// <summary>
+        /// TODO: removes every file from a Foundry vector store so it can be synchronized again.
+        /// </summary>
+        public Task<ResetFilesResponse> ResetFilesAsync(ResetFilesRequest resetFilesRequest)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(resetFilesRequest);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(resetFilesRequest.VectorStoreId);
+
+            //return
+            this._logger.LogInformation($"Resetting the files in vector store {resetFilesRequest.VectorStoreId} is not yet implemented.");
+            return Task.FromResult(new ResetFilesResponse());
+        }
+
+        /// <summary>
+        /// Deletes a vector store.
+        /// </summary>
+        public async Task<bool> DeleteVectorStoreAsync(string vectorStoreId)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
+            this._logger.LogInformation($"Deleting vector store {vectorStoreId}.");
+
+            //get foundry clients
+            AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+            ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+            VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+            //delete vector store
+            string error = $"Failed to delete vector store {vectorStoreId}.";
+            ClientResult<VectorStoreDeletionResult> result = await vectorStoreClient.DeleteVectorStoreAsync(vectorStoreId);
+
+            //return
+            return result?.Value.Deleted ?? false;
+        }
         #endregion
         #region Private Methods
         /// <summary>

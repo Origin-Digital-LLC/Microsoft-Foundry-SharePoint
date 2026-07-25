@@ -83,4 +83,4 @@ This is a new Blazor component that acts performs a synchronization of a blob co
 
 Replace the "Synchronize" button in each row with a Modal component that pops up an instance of Synchronization Manager.
 
-Thanks!
+Fan this out to sub agents as you see fit. Thanks!

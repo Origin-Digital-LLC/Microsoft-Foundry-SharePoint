@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.Identity.Client;
 
 namespace FoundrySharePointKnowledge.Common
 {
@@ -493,12 +494,14 @@ namespace FoundrySharePointKnowledge.Common
                 public const string Search = "search";
                 public const string Status = "status";
                 public const string Webook = "webhook";
+                public const string Foundry = "foundry";
                 public const string Tranche = "tranche";
                 public const string EditTranche = "edit";
                 public const string Complete = "complete";
                 public const string Tranches = "tranches";
                 public const string ProperCase = "proper-case";
                 public const string IndexFiles = "index-files";
+                public const string ResetFiles = "reset-files";
                 public const string UploadFiles = "upload-files";
                 public const string SyncListItem = "sync-list-item";
                 public const string SearchQuery = "search/{query?}";
@@ -508,6 +511,8 @@ namespace FoundrySharePointKnowledge.Common
                 public const string ExecuteWorkflow = "execute-workflow";
                 public const string ConverseWithAgent = "converse-with-agent";
                 public const string EnsureVectorStore = "ensure-vector-store";
+                public const string IndexFilesProgress = "index-files-progress";
+                public const string UpdateTrancheFiles = "update-tranche-files";
                 public const string DeleteExisting = "/{deleteExisting:bool=true}";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
                 public const string MigrateStorageAccount = "migrate-storage-account";
@@ -560,6 +565,24 @@ namespace FoundrySharePointKnowledge.Common
             public const string Controller = "foundry";
             public const string ApplicationRoot = "#app";
             public const string HeadOutlet = "head::after";
+
+            public static class Synchronization
+            {
+                public const double FailedProgress = -1;
+                public const double CompletedProgress = 1;
+                public const double CancelledProgress = -2;
+                public const double IndexingStarted = 0.0001;
+                public const string IndexFiles = "Index Files";
+                public const string ResetFiles = "Reset Files";
+                public const string VectorStore = "Vector Store";
+                public const string UploadFiles = "Upload Files";
+                public const string IndexFailed = "Indexing Failed.";
+                public const string IndexCancelled = "Indexing Cancelled.";
+                public const string IndexCompleted = "Indexing Completed.";
+                public const string VectorStoreFormat = "Vector Store: {0}";
+                public const string UploadedFilesFormat = "Files uploaded to AI: {0}";
+                public const string MissingFileIds = "Upload the tranche's files before indexing them.";
+            }
         }
 
         public static class API

@@ -73,9 +73,14 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         /// </summary>
         protected async Task SaveAsync()
         {
-            //call the api
+            //call the api, carrying the tranche's synchronization metadata forward so renaming it does not clear it
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
-            EditTrancheRequest request = new EditTrancheRequest(this.Tranche.TrancheId, this._editedName);
+            EditTrancheRequest request = new EditTrancheRequest(this.Tranche.TrancheId,
+                                                               this._editedName,
+                                                               this.Tranche.VectorStoreId,
+                                                               this.Tranche.Status,
+                                                               this.Tranche.UploadedFileCount,
+                                                               this.Tranche.UploadedFileSize);
             HttpResponseMessage response = await client.PutAsJsonAsync($"{FSPKConstants.Routing.API.Tranche}/{FSPKConstants.Routing.API.EditTranche}", request);
 
             //update the tranche and notify the parent on success, since sibling components (e.g. a View-mode

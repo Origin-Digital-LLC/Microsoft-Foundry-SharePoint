@@ -1,0 +1,19 @@
+@inherits AccordionBase
+
+<div class="accordion">
+    @foreach (string header in this.PaneHeaders)
+    {
+        <div class="accordion-pane" @key="header">
+            <button class="accordion-header" aria-expanded="@this.GetAriaExpanded(header)" @onclick="() => this.TogglePane(header)">
+                <span class="accordion-header-text">@header</span>
+                <span class="accordion-header-indicator">@this.GetIndicator(header)</span>
+            </button>
+            @if (this.IsOpen(header) && this.PaneContent != null)
+            {
+                <div class="accordion-body">
+                    @this.PaneContent(this.GetPaneValue(header))
+                </div>
+            }
+        </div>
+    }
+</div>

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.Serialization;
 
 using Azure;
 using Azure.Data.Tables;
@@ -15,17 +16,34 @@ namespace FoundrySharePointKnowledge.Domain.Tranches
         #region Properties
         public ETag ETag { get; set; }
         public string RowKey { get; set; }
-        public int FileCount { get; set; }
-        public double TotalSize { get; set; }
+        public int StatusValue { get; set; }
+        public int BlobFileCount { get; set; }
         public string PartitionKey { get; set; }
+        public string VectorStoreId { get; set; }
+        public double BlobTotalSize { get; set; }
         public string ContainerName { get; set; }
+        public int UploadedFileCount { get; set; }
+        public double UploadedFileSize { get; set; }
         public DateTimeOffset? Timestamp { get; set; }
+        public double IndexedFileProgress { get; set; }
         public string Name { get; set; } = string.Format(FSPKConstants.AzureStorage.Tables.DefaultTrancheNameFormat, DateTime.Now);
 
         /// <summary>
         /// The tranche's unique identifier.
         /// </summary>
+        [IgnoreDataMember()]
         public Guid TrancheId => Guid.Parse(this.RowKey);
+
+        /// <summary>
+        /// The tranche's synchronization progress; this is ignored during serialization because Azure Storage
+        /// Tables cannot persist enumerations, so the underlying integer is stored in StatusValue instead.
+        /// </summary>
+        [IgnoreDataMember()]
+        public TrancheStatus Status
+        {
+            get { return (TrancheStatus)this.StatusValue; }
+            set { this.StatusValue = (int)value; }
+        }
         #endregion
         #region Public Methods
         /// <summary>

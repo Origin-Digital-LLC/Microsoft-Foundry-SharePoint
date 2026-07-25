@@ -198,6 +198,7 @@ namespace FoundrySharePointKnowledge.API
             builder.Services.AddScoped<IFoundryService, FoundryService>();
             builder.Services.AddScoped<ITrancheService, TrancheService>();
             builder.Services.AddScoped<ISharePointService, SharePointService>();
+            builder.Services.AddScoped<ITokenExchangeService, TokenExchangeService>();
 
             //build web app
             WebApp app = builder.Build();

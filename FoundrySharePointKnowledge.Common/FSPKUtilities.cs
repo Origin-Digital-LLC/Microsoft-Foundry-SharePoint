@@ -71,17 +71,21 @@ namespace FoundrySharePointKnowledge.Common
         public static bool EnsureSuccess<T, L>(this ClientResult<T> result, string message, ILogger<L> logger, bool throwException = true) where T : class
         {
             //initialization
-            if (throwException)
+            if (result == null)
             {
-                //throw
-                ArgumentNullException.ThrowIfNull(result, message);
-            }
-            else
-            {
-                //log
-                logger.LogError("A client result was null.");
-                return false;
-            }
+                //error
+                if (throwException)
+                {
+                    //throw
+                    throw new ArgumentNullException(message);
+                }
+                else
+                {
+                    //log
+                    logger.LogError(message);
+                    return false;
+                }
+            }          
 
             //return
             if (result.Value == null)

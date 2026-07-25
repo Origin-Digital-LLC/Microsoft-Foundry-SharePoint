@@ -1,0 +1,80 @@
+@inherits SynchronizationManagerBase
+
+<div class="sync-manager">
+    @if (!string.IsNullOrWhiteSpace(this.Message))
+    {
+        <p class="sync-manager-error">@this.Message</p>
+    }
+    <Accordion Panes="this.Panes" AutoClose="true">
+        <PaneContent Context="paneValue">
+            @{
+                SynchronizationStep step = (SynchronizationStep)paneValue;
+            }
+            @if (step.Status == TrancheStatus.Pending)
+            {
+                @if (string.IsNullOrWhiteSpace(step.Tranche.VectorStoreId))
+                {
+                    <button class="tranche-action-button" disabled="@this.IsBusy" @onclick="this.CreateVectorStoreAsync">Create Vector Store</button>
+                }
+                else
+                {
+                    <p class="sync-manager-status">@string.Format(FSPKConstants.Blazor.Synchronization.VectorStoreFormat, step.Tranche.VectorStoreId)</p>
+                }
+            }
+            else if (step.Status == TrancheStatus.VectorStoreCreated)
+            {
+                @if (step.Tranche.UploadedFileCount == 0)
+                {
+                    <div class="sync-manager-form">
+                        <label class="sync-manager-label" for="sync-manager-prefix">Prefix</label>
+                        <input id="sync-manager-prefix" class="tranche-edit-input" @bind="this.FilePrefix" @bind:event="oninput" placeholder="Optional file prefix" />
+                        <button class="tranche-action-button" disabled="@this.IsBusy" @onclick="this.UploadFilesAsync">Upload</button>
+                    </div>
+                }
+                else
+                {
+                    <p class="sync-manager-status">@string.Format(FSPKConstants.Blazor.Synchronization.UploadedFilesFormat, step.Tranche.UploadedFileCount)</p>
+                }
+            }
+            else if (step.Status == TrancheStatus.FilesUploaded)
+            {
+                @if (step.Tranche.IndexedFileProgress == 0)
+                {
+                    <button class="tranche-action-button" disabled="@this.IsBusy" @onclick="this.IndexFilesAsync">Index</button>
+                }
+                else if (step.Tranche.IndexedFileProgress == FSPKConstants.Blazor.Synchronization.FailedProgress)
+                {
+                    <p class="sync-manager-status">@FSPKConstants.Blazor.Synchronization.IndexFailed</p>
+                }
+                else if (step.Tranche.IndexedFileProgress >= FSPKConstants.Blazor.Synchronization.CompletedProgress)
+                {
+                    <p class="sync-manager-status">@FSPKConstants.Blazor.Synchronization.IndexCompleted</p>
+                }
+                else
+                {
+                    
+                }
+            }
+            else
+            {
+                <Modal Width="0.3" AutoClose="false" IsNested="true" Affirmed="this.ResetFilesAsync">
+                    <ClosedContent Context="openCallback">
+                        <button class="tranche-delete-button" disabled="@this.IsBusy" @onclick="openCallback">Reset</button>
+                    </ClosedContent>
+                    <HeaderContent>
+                        <h2>Are you sure?</h2>
+                    </HeaderContent>
+                    <MainContent>
+                        <p>Are you sure you want to reset the files indexed for "@step.Tranche.Name"?</p>
+                    </MainContent>
+                    <FooterContent Context="callbacks">
+                        <div class="modal-footer-buttons">
+                            <button class="modal-button modal-button-ok" @onclick="callbacks.OnOk">Yes</button>
+                            <button class="modal-button modal-button-cancel" @onclick="callbacks.OnCancel">No</button>
+                        </div>
+                    </FooterContent>
+                </Modal>
+            }
+        </PaneContent>
+    </Accordion>
+</div>

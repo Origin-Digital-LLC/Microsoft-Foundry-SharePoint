@@ -12,9 +12,9 @@ using FoundrySharePointKnowledge.Domain.Foundry;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Domain.Foundry.Agents;
+using FoundrySharePointKnowledge.Domain.Foundry.VectorStores;
 using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
 using Prompt = FoundrySharePointKnowledge.Domain.Foundry.Conversations.Prompt;
-using FoundrySharePointKnowledge.Domain.Foundry.VectorStores;
 
 namespace FoundrySharePointKnowledge.API.Controllers
 {
@@ -222,13 +222,55 @@ namespace FoundrySharePointKnowledge.API.Controllers
 
             try
             {
-                //upload
+                //index
                 return this.Ok(await this._foundryService.IndexVectorStoreFilesAsync(indexFilesRequest));
             }
             catch (Exception ex)
             {
                 //error
+                return this.BadRequest($"Failed to index files to Foundry vector store {indexFilesRequest.VectorStoreId}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the progress of an ongoing Foundry vector store indexing operation.
+        /// </summary>
+        [HttpGet(FSPKConstants.Routing.API.IndexFilesProgress)]
+        public async Task<IActionResult> GetIndexOperationProgressAsync([FromBody()] IndexProgressRequest indexProgressRequest)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.GetIndexOperationProgressAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //poll
+                return this.Ok(await this._foundryService.GetIndexOperationProgressAsync(indexProgressRequest));
+            }
+            catch (Exception ex)
+            {
+                //error
                 return this.BadRequest($"Failed to upload files to Foundry: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Removes all files from a Foundry project's vector store.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.ResetFiles)]
+        public async Task<IActionResult> ResetFilesAsync([FromBody()] ResetFilesRequest resetFilesRequest)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.ResetFilesAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //reset
+                return this.Ok(await this._foundryService.ResetFilesAsync(resetFilesRequest));
+            }
+            catch (Exception ex)
+            {
+                //error
+                return this.BadRequest($"Failed to reset files in Foundry: {ex.Message}");
             }
         }
 

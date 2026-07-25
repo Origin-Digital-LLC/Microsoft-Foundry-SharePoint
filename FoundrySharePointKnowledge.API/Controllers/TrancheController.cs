@@ -140,6 +140,32 @@ namespace FoundrySharePointKnowledge.API.Controllers
         }
 
         /// <summary>
+        /// Records the vector store file identifiers produced by an upload against a tranche's tracked files.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.UpdateTrancheFiles)]
+        public async Task<IActionResult> UpdateFilesAsync([FromBody()] UpdateFilesRequest request)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.UpdateFilesAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //check request
+                if (request == null || request.FileIds == null)
+                    return this.BadRequest("Please specify the tranche and file identifiers to update.");
+
+                //return
+                return this.Ok(await this._trancheService.UpdateFilesAsync(request));
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to update files for tranche {request?.TrancheId}.");
+                return this.BadRequest(ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Loads all bulk upload tranches for the current user.
         /// </summary>
         [HttpGet(FSPKConstants.Routing.API.Tranches)]

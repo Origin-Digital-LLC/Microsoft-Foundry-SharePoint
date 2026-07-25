@@ -1,4 +1,6 @@
-﻿namespace FoundrySharePointKnowledge.Domain.Foundry.VectorStores
+﻿using System.Text.Json.Serialization;
+
+namespace FoundrySharePointKnowledge.Domain.Foundry.VectorStores
 {
     /// <summary>
     /// Finishes an operation to index Foundry project files into a vector store.
@@ -16,8 +18,10 @@
         }
 
         /// <summary>
-        /// Wait.
+        /// Wait; this is also the constructor callers deserialize into, since a record with more than one
+        /// constructor is ambiguous to System.Text.Json and Error is populated through its init accessor.
         /// </summary>
+        [JsonConstructor()]
         public IndexFilesResponse(string batchId, int durationChecks, double durationMinutes) : this(batchId)
         {
             //initialization
@@ -40,12 +44,14 @@
         public string BatchId { get; init; }
         public int DurationChecks { get; init; }
         public double DurationMinutes { get; init; }
+
+        public bool IsError => !string.IsNullOrWhiteSpace(this.Error);
         #endregion
         #region Public Methods
         public override string ToString()
         {
             //return
-            return string.IsNullOrWhiteSpace(this.Error) ? this.BatchId : this.Error;
+            return this.IsError ? this.Error : this.BatchId;
         }
         #endregion
     }

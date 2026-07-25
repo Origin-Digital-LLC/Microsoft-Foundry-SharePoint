@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -26,16 +27,19 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         private readonly BlobServiceClient _blobClient;
         private readonly TableServiceClient _tableClient;
         private readonly ILogger<TrancheService> _logger;
+        private readonly IFoundryService _foundryService;
         #endregion
         #region Initialization
         public TrancheService(BlobServiceClient blobClient,
                               TableServiceClient tableClient,
-                              ILogger<TrancheService> logger)
+                              ILogger<TrancheService> logger,
+                              IFoundryService foundryService)
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this._blobClient = blobClient ?? throw new ArgumentNullException(nameof(blobClient));
             this._tableClient = tableClient ?? throw new ArgumentNullException(nameof(tableClient));
+            this._foundryService = foundryService ?? throw new ArgumentNullException(nameof(foundryService));
         }
         #endregion
         #region Public Methods
@@ -119,8 +123,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             await foreach (TrancheTableEntity tranche in tranches.QueryAsync<TrancheTableEntity>(t => t.RowKey == trancheId.ToString()))
             {
                 //update and save the match, which should be the only one
-                tranche.TotalSize = totalSize;
-                tranche.FileCount = entities.Count;
+                tranche.BlobTotalSize = totalSize;
+                tranche.BlobFileCount = entities.Count;
                 await tranches.UpsertEntityAsync(tranche);
             }
 
@@ -162,13 +166,87 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             TableClient tranches = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.Tranches);
             await foreach (TrancheTableEntity tranche in tranches.QueryAsync<TrancheTableEntity>(t => t.RowKey == request.TrancheId.ToString()))
             {
-                //apply and save the edit
+                //apply the edit
                 tranche.Name = request.Name;
+                tranche.Status = request.Status;
+                tranche.VectorStoreId = request.VectorStoreId;
+                tranche.UploadedFileSize = request.UploadedFileSize;
+                tranche.UploadedFileCount = request.UploadedFileCount;
+                tranche.IndexedFileProgress = request.IndexedFileProgress;
+
+                //save
                 await tranches.UpsertEntityAsync(tranche);
             }
 
             //return
             this._logger.LogInformation($"Edited tranche {request.TrancheId}.");
+        }
+
+        /// <summary>
+        /// Records the vector store file identifiers produced by an upload against a tranche's tracked files.
+        /// </summary>
+        public async Task<UpdateFilesResponse> UpdateFilesAsync(UpdateFilesRequest request)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(request);
+            ArgumentNullException.ThrowIfNull(request.FileIds);
+            this._logger.LogInformation($"Updating {request.FileIds.Pluralize("file")} for tranche {request.TrancheId}.");
+
+            //this mirrors the file name transformations applied when files are uploaded to a vector store
+            string toUploadedFileName(string rowKey)
+            {
+                //undo the row key sanitization, since uploads replace path separators with hyphens
+                string fileName = rowKey.Replace('!', '-');
+
+                //plaintext files are uploaded with an explicit TXT extension
+                switch (Path.GetExtension(fileName).ToLowerInvariant())
+                {
+                    //represent all plaintext files explicitly as TXT
+                    case FSPKConstants.Extensions.CSV:
+                    case FSPKConstants.Extensions.XML:
+                    case FSPKConstants.Extensions.JSON:
+                        fileName = $"{fileName}{FSPKConstants.Extensions.TXT}";
+                        break;
+                }
+
+                //return
+                return fileName;
+            }
+
+            //collect every file tracked for this tranche
+            TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
+            Dictionary<string, TrancheFileTableEntity> files = new Dictionary<string, TrancheFileTableEntity>();
+            await foreach (TrancheFileTableEntity file in trancheFiles.QueryAsync<TrancheFileTableEntity>(f => f.PartitionKey == request.TrancheId.ToString()))
+            {
+                //index each file by its row key and by the name it was uploaded under
+                files[file.RowKey] = file;
+                files[toUploadedFileName(file.RowKey)] = file;
+            }
+
+            //match every uploaded file to its tracked record, keyed by row key so no record is updated twice
+            Dictionary<string, TrancheFileTableEntity> matches = new Dictionary<string, TrancheFileTableEntity>();
+            foreach (KeyValuePair<string, string> fileId in request.FileIds)
+            {
+                //find the tracked record for this uploaded file
+                if (!files.TryGetValue(fileId.Key, out TrancheFileTableEntity file) && !files.TryGetValue(fileId.Key.ToTableRowKey(), out file))
+                {
+                    //no match
+                    this._logger.LogWarning($"Unable to match uploaded file {fileId.Key} to a tracked file in tranche {request.TrancheId}.");
+                    continue;
+                }
+
+                //collect the match
+                file.FileId = fileId.Value;
+                matches[file.RowKey] = file;
+            }
+
+            //save every match
+            if (matches.Count > 0)
+                await trancheFiles.PerformBulkTableTansactionAsync(matches.Values.ToList(), TableTransactionActionType.UpsertReplace);
+
+            //return
+            this._logger.LogInformation($"Updated {matches.Pluralize("file")} of {request.FileIds.Pluralize("uploaded file")} for tranche {request.TrancheId}.");
+            return new UpdateFilesResponse();
         }
 
         /// <summary>
@@ -214,7 +292,14 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             //delete the tranche record itself, which should be the only match
             TableClient tranches = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.Tranches);
             await foreach (TrancheTableEntity tranche in tranches.QueryAsync<TrancheTableEntity>(t => t.RowKey == trancheId.ToString()))
+            {
+                //delete vector store
+                if (!string.IsNullOrWhiteSpace(tranche.VectorStoreId))
+                    await this._foundryService.DeleteVectorStoreAsync(tranche.VectorStoreId);
+
+                //delete trache
                 await tranches.DeleteEntityAsync(tranche.PartitionKey, tranche.RowKey);
+            }
 
             //return
             this._logger.LogInformation($"Deleted tranche {trancheId} and container {containerName}.");

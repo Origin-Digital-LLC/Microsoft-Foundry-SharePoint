@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 using FoundrySharePointKnowledge.Common;
 
@@ -11,8 +12,10 @@ namespace FoundrySharePointKnowledge.Domain.Foundry.VectorStores
     {
         #region Initialization
         /// <summary>
-        /// Success.
+        /// Success; this is also the constructor callers deserialize into, since a record with more than one
+        /// constructor is ambiguous to System.Text.Json and Error is populated through its init accessor.
         /// </summary>
+        [JsonConstructor()]
         public UploadFilesResponse(Dictionary<string, string> fileIds, string[] failedFiles, double totalSize)
         {
             //initialization

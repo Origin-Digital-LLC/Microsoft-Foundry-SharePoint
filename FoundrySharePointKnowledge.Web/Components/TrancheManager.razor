@@ -25,10 +25,22 @@ else
                     <tr>
                         <td><EditTranche Mode="EditTrancheMode.View" Tranche="tranche" /></td>
                         <td>@tranche.Timestamp?.LocalDateTime.ToString("g")</td>
-                        <td>@tranche.FileCount</td>
-                        <td>@tranche.TotalSize.ToSizeString()</td>
+                        <td>@tranche.BlobFileCount</td>
+                        <td>@tranche.BlobTotalSize.ToSizeString()</td>
                         <td>
-                            <button class="tranche-action-button">Synchronize</button>
+                            <Modal Width="0.5" AutoClose="true" Title="@tranche.Name">
+                                <ClosedContent Context="openCallback">
+                                    <button class="tranche-action-button" @onclick="openCallback">Synchronize</button>
+                                </ClosedContent>
+                                <MainContent>
+                                    <SynchronizationManager Tranche="tranche" Updated="this.StateHasChanged" />
+                                </MainContent>
+                                <FooterContent Context="callbacks">
+                                    <div class="modal-footer-buttons">
+                                        <button class="modal-button modal-button-cancel" @onclick="callbacks.OnCancel">Close</button>
+                                    </div>
+                                </FooterContent>
+                            </Modal>
                         </td>
                         <td>
                             <EditTranche Mode="EditTrancheMode.Edit" Tranche="tranche" Updated="this.StateHasChanged" />

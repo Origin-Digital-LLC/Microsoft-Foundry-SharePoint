@@ -2,7 +2,7 @@
 
 @if (this.IsOpen)
 {
-    <div class="modal-backdrop" @onclick="this.HandleBackdropClick">
+    <div class="@this.BackdropClass" @onclick="this.HandleBackdropClick">
         <div class="modal-dialog" style="width: @this.WidthPercentageStyle;" @onclick:stopPropagation="true">
             <div class="modal-header">
                 @if (this.HeaderContent != null)

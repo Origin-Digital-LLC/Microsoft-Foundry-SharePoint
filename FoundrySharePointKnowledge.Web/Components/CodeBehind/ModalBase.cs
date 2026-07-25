@@ -27,6 +27,9 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         public bool AutoClose { get; set; }
 
         [Parameter()]
+        public bool IsNested { get; set; }
+
+        [Parameter()]
         public string ButtonText { get; set; } = "Open";
 
         [Parameter()]
@@ -44,6 +47,11 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected bool IsOpen => this._state == ModalState.Open;
 
         protected string WidthPercentageStyle => string.Format(CultureInfo.InvariantCulture, "{0}%", this.Width * 100);
+
+        /// <summary>
+        /// Lifts a nested modal above the modal that opened it, since both overlays share the same stacking layer.
+        /// </summary>
+        protected string BackdropClass => this.IsNested ? "modal-backdrop modal-backdrop-nested" : "modal-backdrop";
 
         protected EventCallback OpeningCallback => EventCallback.Factory.Create(this, this.HandleOpeningAsync);
 
