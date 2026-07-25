@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Domain.Upload;
+using FoundrySharePointKnowledge.Domain.Tranches;
 using FoundrySharePointKnowledge.Domain.Contracts;
 
 namespace FoundrySharePointKnowledge.API.Controllers
@@ -62,7 +62,7 @@ namespace FoundrySharePointKnowledge.API.Controllers
         /// Records the files uploaded for a completed bulk upload tranche.
         /// </summary>
         [HttpPost(FSPKConstants.Routing.API.Complete)]
-        public async Task<IActionResult> CompleteUploadAsync([FromBody()] CompleteUploadRequest request)
+        public async Task<IActionResult> CompleteUploadAsync([FromBody()] CompleteTrancheUploadRequest request)
         {
             //initialization
             this._logger.LogInformation($"Handling request to {nameof(this.CompleteUploadAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");

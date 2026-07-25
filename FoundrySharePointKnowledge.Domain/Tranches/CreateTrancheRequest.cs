@@ -1,4 +1,4 @@
-namespace FoundrySharePointKnowledge.Domain.Upload
+namespace FoundrySharePointKnowledge.Domain.Tranches
 {
     /// <summary>
     /// This holds the metadata needed to create a bulk upload tranche.

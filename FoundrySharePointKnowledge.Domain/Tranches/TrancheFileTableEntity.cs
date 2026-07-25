@@ -3,7 +3,7 @@ using System;
 using Azure;
 using Azure.Data.Tables;
 
-namespace FoundrySharePointKnowledge.Domain.Upload
+namespace FoundrySharePointKnowledge.Domain.Tranches
 {
     /// <summary>
     /// Represents an uploaded file belonging to a tranche in Azure Storage tables.

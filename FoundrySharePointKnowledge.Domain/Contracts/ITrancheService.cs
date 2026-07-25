@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-using FoundrySharePointKnowledge.Domain.Upload;
+using FoundrySharePointKnowledge.Domain.Tranches;
 
 namespace FoundrySharePointKnowledge.Domain.Contracts
 {

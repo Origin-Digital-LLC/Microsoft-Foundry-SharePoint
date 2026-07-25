@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Domain.Upload;
+using FoundrySharePointKnowledge.Domain.Tranches;
 
 namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 {

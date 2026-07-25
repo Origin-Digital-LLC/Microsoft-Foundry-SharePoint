@@ -65,14 +65,23 @@ namespace FoundrySharePointKnowledge.Common
             return error;
         }
 
-
         /// <summary>
         /// Throw an exception if a client result indicated a failed request.
         /// </summary>
-        public static void EnsureSuccess<T, L>(this ClientResult<T> result, string message, ILogger<L> logger) where T : class
+        public static bool EnsureSuccess<T, L>(this ClientResult<T> result, string message, ILogger<L> logger, bool throwException = true) where T : class
         {
             //initialization
-            ArgumentNullException.ThrowIfNull(result, message);
+            if (throwException)
+            {
+                //throw
+                ArgumentNullException.ThrowIfNull(result, message);
+            }
+            else
+            {
+                //log
+                logger.LogError("A client result was null.");
+                return false;
+            }
 
             //return
             if (result.Value == null)
@@ -82,8 +91,25 @@ namespace FoundrySharePointKnowledge.Common
                 logger.LogError(error, message);
 
                 //throw
-                throw new Exception(message, error);
+                if (throwException)
+                    throw new Exception(message, error);
+                else
+                    return false;
             }
+            else
+            {
+                //success
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Determine if a client result indicated a failed request.
+        /// </summary>
+        public static bool IsSuccessful<T>(this ClientResult<T> result) where T : class
+        {
+            //return
+            return result?.Value != null;
         }
         #endregion
         #region Threading

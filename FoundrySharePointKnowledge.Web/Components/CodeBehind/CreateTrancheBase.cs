@@ -9,7 +9,7 @@ using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Domain.Upload;
+using FoundrySharePointKnowledge.Domain.Tranches;
 
 namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 {
@@ -257,7 +257,7 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 
             //build the request using the relative paths so folder structure is preserved
             string[] fileNames = this._files.Select(f => f.RelativePath).ToArray();
-            CompleteUploadRequest request = new CompleteUploadRequest(this._trancheId, this._containerName, fileNames);
+            CompleteTrancheUploadRequest request = new CompleteTrancheUploadRequest(this._trancheId, this._containerName, fileNames);
 
             //notify the api
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));

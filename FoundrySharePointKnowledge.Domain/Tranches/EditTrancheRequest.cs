@@ -1,6 +1,6 @@
 using System;
 
-namespace FoundrySharePointKnowledge.Domain.Upload
+namespace FoundrySharePointKnowledge.Domain.Tranches
 {
     /// <summary>
     /// This holds the editable metadata for a bulk upload tranche.

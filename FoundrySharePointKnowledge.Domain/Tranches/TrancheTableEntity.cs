@@ -5,7 +5,7 @@ using Azure.Data.Tables;
 
 using FoundrySharePointKnowledge.Common;
 
-namespace FoundrySharePointKnowledge.Domain.Upload
+namespace FoundrySharePointKnowledge.Domain.Tranches
 {
     /// <summary>
     /// Represents a bulk upload tranche in Azure Storage tables.

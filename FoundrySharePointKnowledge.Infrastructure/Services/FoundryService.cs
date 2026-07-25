@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Reflection;
 using System.ClientModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -33,6 +34,7 @@ using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
 using OpenAI.Files;
 using OpenAI.Responses;
 using OpenAI.VectorStores;
+using FoundrySharePointKnowledge.Domain.Foundry.VectorStores;
 
 #pragma warning disable AAIP001
 #pragma warning disable OPENAI001
@@ -967,21 +969,161 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
         }
 
+        ///// <summary>
+        ///// Calls an agent to reason over files whose names start with the given prefix.
+        ///// </summary>
+        //public async Task<string> AnalyzeFilesInContainerAsync(AnalyzeFilesRequest analyzeFilesRequest, FoundryCredential foundryCredential)
+        //{
+        //    //initialization
+        //    ArgumentNullException.ThrowIfNull(analyzeFilesRequest);
+        //    ArgumentNullException.ThrowIfNullOrWhiteSpace(analyzeFilesRequest.ContainerName);
+        //    this._logger.LogInformation($"Starting file upload and analysis of {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $"/{analyzeFilesRequest.FilePrefix}")}.");
+
+        //    try
+        //    {
+        //        //get container
+        //        ConcurrentDictionary<Agent, string> agentPrompts = new ConcurrentDictionary<Agent, string>();
+        //        BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(analyzeFilesRequest.ContainerName);
+        //        ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>> blobs = new ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>>();
+
+        //        //download all blobs
+        //        await containerClient.CreateIfNotExistsAsync();
+        //        await foreach (BlobItem blob in containerClient.GetBlobsAsync(new GetBlobsOptions()
+        //        {
+        //            //assemble object                
+        //            Prefix = analyzeFilesRequest.FilePrefix
+        //        }))
+        //        {
+        //            //download each blob
+        //            this._logger.LogInformation($"Downloading {blob.Name}.");
+        //            blobs.TryAdd(blob.Name, containerClient.GetBlobClient(blob.Name).DownloadContentAsync());
+        //        }
+
+        //        //wait for work to finish
+        //        AggregateException downloadError = await blobs.Values.WhenAllAsync();
+        //        if (downloadError != null)
+        //            throw downloadError;
+
+        //        //get blob contents
+        //        Dictionary<string, string> errors = new Dictionary<string, string>();
+        //        Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+        //        foreach (string fileName in blobs.Keys)
+        //        {
+        //            //check each file
+        //            Response<BlobDownloadResult> file = blobs[fileName].Result;
+        //            string error = await file.GetResponseErrorAsync($"Failed to download {fileName} from {containerClient.Uri}.");
+
+        //            //collect each file and track errors
+        //            if (!string.IsNullOrWhiteSpace(error))
+        //                errors.Add(fileName, error);
+        //            else
+        //                files.Add(fileName, file.Value.Content.ToArray());
+        //        }
+
+        //        //upload files
+        //        ConcurrentDictionary<string, string> fileIds = await this.UploadVecorStoreFilesAsync(files, (fileName) =>
+        //        {
+        //            //determine file type
+        //            string fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
+        //            string prefix = $"{analyzeFilesRequest.ContainerName}-{fileExtension.TrimStart('.').ToUpperInvariant()}";
+
+        //            //convert file to JSON
+        //            switch (fileExtension)
+        //            {
+        //                //csv
+        //                case FSPKConstants.Extensions.CSV:
+        //                    agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.CSVAnalyzer : analyzeFilesRequest.Agent, prefix);
+        //                    break;
+
+        //                //xml
+        //                case FSPKConstants.Extensions.XML:
+        //                    agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.XMLAnalyzer : analyzeFilesRequest.Agent, prefix);
+        //                    break;
+
+        //                //not supported
+        //                default:
+        //                    this._logger.LogWarning($"{fileName} does not have a valid extension.");
+        //                    break;
+        //            }
+        //        });
+
+        //        //index files
+        //        string vectorStoreId = await this.EnsureVectorStoreAsync(analyzeFilesRequest.VectorStoreName);
+        //        string batchId = await this.IndexVectorStoreFilesAsync(vectorStoreId, fileIds);
+
+        //        //start answer
+        //        ConcurrentDictionary<Agent, string> agentResponses = new ConcurrentDictionary<Agent, string>();
+        //        StringBuilder answerBuilder = new StringBuilder($"Analysis of file batch {batchId}");
+        //        answerBuilder.AppendLine();
+
+        //        //analyze files
+        //        await Parallel.ForEachAsync(agentPrompts, new ParallelOptions()
+        //        {
+        //            //assemble object
+        //            MaxDegreeOfParallelism = agentPrompts.Count
+        //        }, async (agentPrompt, _) =>
+        //        {
+        //            //get agent response
+        //            ConversationPrompt conversationPrompt = new ConversationPrompt(agentPrompt.Key, string.Format(FSPKConstants.Foundry.Prompts.AnalyzeFilesFormat, agentPrompt.Value));
+        //            AgentResponse<string> agentResponse = await this.ConverseWithAgentAsync(conversationPrompt, foundryCredential);
+
+        //            //check agent response
+        //            if (string.IsNullOrWhiteSpace(agentResponse?.Message))
+        //            {
+        //                //error
+        //                agentResponses.TryAdd(agentPrompt.Key, "N/A");
+        //                this._logger.LogError($"Got an empty response for agent {agentPrompt.Key.GetDisplayShortName()} for prompt {conversationPrompt.UserMessage}.");
+        //            }
+        //            else
+        //            {
+        //                //capture agent response
+        //                agentResponses.TryAdd(agentPrompt.Key, agentResponse.Message);
+        //            }
+        //        });
+
+        //        //finish answer
+        //        foreach (Agent agent in agentResponses.Keys)
+        //        {
+        //            //separate responses
+        //            if (answerBuilder.Length > 0)
+        //                answerBuilder.AppendLine();
+
+        //            //build agent header
+        //            answerBuilder.AppendLine($"{agent.GetDisplayName()} Agent Analysis");
+        //            answerBuilder.AppendLine();
+
+        //            //append answer
+        //            answerBuilder.AppendLine(agentResponses[agent]);
+        //        }
+
+        //        //return
+        //        return answerBuilder.ToString();
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //error
+        //        this._logger.LogError(ex, $"Failed to analyze files in blob container {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $" with prefix {analyzeFilesRequest.FilePrefix}")}.");
+        //        throw;
+        //    }
+        //}
+
         /// <summary>
-        /// Calls an agent to reason over files whose names start with the given prefix.
+        /// Indexes files in a vector store.
         /// </summary>
-        public async Task<string> AnalyzeFilesInContainerAsync(AnalyzeFilesRequest analyzeFilesRequest, FoundryCredential foundryCredential)
+        public async Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest)
         {
             //initialization
-            ArgumentNullException.ThrowIfNull(analyzeFilesRequest);
-            ArgumentNullException.ThrowIfNullOrWhiteSpace(analyzeFilesRequest.ContainerName);
-            this._logger.LogInformation($"Starting file upload and analysis of {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $"/{analyzeFilesRequest.FilePrefix}")}.");
+            ArgumentNullException.ThrowIfNull(uploadFilesRequest);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(uploadFilesRequest.ContainerName);
+            this._logger.LogInformation($"Starting file indexing of {uploadFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(uploadFilesRequest.FilePrefix) ? string.Empty : $"/{uploadFilesRequest.FilePrefix}")}.");
 
             try
             {
                 //get container
-                ConcurrentDictionary<Agent, string> agentPrompts = new ConcurrentDictionary<Agent, string>();
-                BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(analyzeFilesRequest.ContainerName);
+                int totalSize = 0;
+                List<string> failedFiles = new List<string>();
+                Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+                BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(uploadFilesRequest.ContainerName);
                 ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>> blobs = new ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>>();
 
                 //download all blobs
@@ -989,7 +1131,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 await foreach (BlobItem blob in containerClient.GetBlobsAsync(new GetBlobsOptions()
                 {
                     //assemble object                
-                    Prefix = analyzeFilesRequest.FilePrefix
+                    Prefix = uploadFilesRequest.FilePrefix
                 }))
                 {
                     //download each blob
@@ -1002,122 +1144,31 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 if (downloadError != null)
                     throw downloadError;
 
-                //get blob contents
-                Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+                //get blob contents           
                 foreach (string fileName in blobs.Keys)
                 {
                     //check each file
                     Response<BlobDownloadResult> file = blobs[fileName].Result;
                     string error = await file.GetResponseErrorAsync($"Failed to download {fileName} from {containerClient.Uri}.");
 
-                    //collect each file
+                    //collect each file and track errors
                     if (!string.IsNullOrWhiteSpace(error))
-                        throw new Exception(error);
+                    {
+                        //error
+                        failedFiles.Add(fileName);
+                        this._logger.LogWarning($"Failed to upload file {fileName}: {error}.");
+                    }
                     else
+                    {
+                        //collect file bytes
                         files.Add(fileName, file.Value.Content.ToArray());
+                    }
                 }
 
                 //upload files
-                ConcurrentDictionary<string, string> fileIds = await this.UploadVecorStoreFilesAsync(files, (fileName) =>
-                {
-                    //determine file type
-                    string fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
-                    string prefix = $"{analyzeFilesRequest.ContainerName}-{fileExtension.TrimStart('.').ToUpperInvariant()}";
-
-                    //convert file to JSON
-                    switch (fileExtension)
-                    {
-                        //csv
-                        case FSPKConstants.Extensions.CSV:
-                            agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.CSVAnalyzer : analyzeFilesRequest.Agent, prefix);
-                            break;
-
-                        //xml
-                        case FSPKConstants.Extensions.XML:
-                            agentPrompts.TryAdd(analyzeFilesRequest.Agent == Agent.None ? Agent.XMLAnalyzer : analyzeFilesRequest.Agent, prefix);
-                            break;
-
-                        //not supported
-                        default:
-                            this._logger.LogWarning($"{fileName} does not have a valid extension.");
-                            break;
-                    }
-                });
-
-                //index files
-                string vectorStoreId = await this.EnsureVectorStoreAsync(analyzeFilesRequest.VectorStoreName);
-                string batchId = await this.IndexVectorStoreFilesAsync(vectorStoreId, fileIds);
-
-                //start answer
-                ConcurrentDictionary<Agent, string> agentResponses = new ConcurrentDictionary<Agent, string>();
-                StringBuilder answerBuilder = new StringBuilder($"Analysis of file batch {batchId}");
-                answerBuilder.AppendLine();
-
-                //analyze files
-                await Parallel.ForEachAsync(agentPrompts, new ParallelOptions()
-                {
-                    //assemble object
-                    MaxDegreeOfParallelism = agentPrompts.Count
-                }, async (agentPrompt, _) =>
-                {
-                    //get agent response
-                    ConversationPrompt conversationPrompt = new ConversationPrompt(agentPrompt.Key, string.Format(FSPKConstants.Foundry.Prompts.AnalyzeFilesFormat, agentPrompt.Value));
-                    AgentResponse<string> agentResponse = await this.ConverseWithAgentAsync(conversationPrompt, foundryCredential);
-
-                    //check agent response
-                    if (string.IsNullOrWhiteSpace(agentResponse?.Message))
-                    {
-                        //error
-                        agentResponses.TryAdd(agentPrompt.Key, "N/A");
-                        this._logger.LogError($"Got an empty response for agent {agentPrompt.Key.GetDisplayShortName()} for prompt {conversationPrompt.UserMessage}.");
-                    }
-                    else
-                    {
-                        //capture agent response
-                        agentResponses.TryAdd(agentPrompt.Key, agentResponse.Message);
-                    }
-                });
-
-                //finish answer
-                foreach (Agent agent in agentResponses.Keys)
-                {
-                    //separate responses
-                    if (answerBuilder.Length > 0)
-                        answerBuilder.AppendLine();
-
-                    //build agent header
-                    answerBuilder.AppendLine($"{agent.GetDisplayName()} Agent Analysis");
-                    answerBuilder.AppendLine();
-
-                    //append answer
-                    answerBuilder.AppendLine(agentResponses[agent]);
-                }
-
-                //return
-                return answerBuilder.ToString();
-            }
-            catch (Exception ex)
-            {
-                //error
-                this._logger.LogError(ex, $"Failed to analyze files in blob container {analyzeFilesRequest.ContainerName}{(string.IsNullOrWhiteSpace(analyzeFilesRequest.FilePrefix) ? string.Empty : $" with prefix {analyzeFilesRequest.FilePrefix}")}.");
-                throw;
-            }
-        }
-
-        #endregion
-        #region Private Methods
-        /// <summary>
-        /// Uploads a batch of JSON files to a vector store.
-        /// </summary>
-        private async Task<ConcurrentDictionary<string, string>> UploadVecorStoreFilesAsync(Dictionary<string, byte[]> files, Action<string> fileCallback)
-        {
-            //initialization
-            ArgumentNullException.ThrowIfNull(files);
-            ConcurrentDictionary<string, string> fileIds = new ConcurrentDictionary<string, string>();
-            string message = $" {files.Pluralize("file")} to {this._foundryProjectSettings.ProjectEndpoints[0].ToString()}.";
-
-            try
-            {
+                ConcurrentDictionary<string, string> fileIds = new ConcurrentDictionary<string, string>();
+                string message = $" {files.Pluralize("file")} to {this._foundryProjectSettings.ProjectEndpoints[0].ToString()}.";
+               
                 //get foundry clients
                 AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
                 ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
@@ -1131,37 +1182,54 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     MaxDegreeOfParallelism = FSPKConstants.AzureStorage.Blobs.Parallelism
                 }, async (file, _) =>
                 {
-                    //upload each file
-                    fileCallback(file.Key);
-                    string fileName = $"{file.Key.Replace('/', '-')}{FSPKConstants.Extensions.TXT}";
-                    ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(new MemoryStream(file.Value), fileName, FileUploadPurpose.Assistants);
+                    //process file
+                    string fileName = file.Key.Replace('/', '-');
+                    string fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
 
-                    //check file
-                    uploadedFile.EnsureSuccess($"Failed to upload {file.Key}", this._logger);
-                    fileIds.TryAdd(fileName, uploadedFile.Value.Id);
+                    //handle text files
+                    switch (fileExtension)
+                    {
+                        //represent all plaintext files explicitly as TXT
+                        case FSPKConstants.Extensions.CSV:
+                        case FSPKConstants.Extensions.XML:
+                        case FSPKConstants.Extensions.JSON:
+                            fileName = $"{fileName}{FSPKConstants.Extensions.TXT}";
+                            break;
+                    }
+
+                    //upload each file
+                    ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(new MemoryStream(file.Value), fileName, FileUploadPurpose.Assistants);
+                    if (uploadedFile.EnsureSuccess($"Failed to upload {file.Key}", this._logger, false))
+                        if (fileIds.TryAdd(fileName, uploadedFile.Value.Id))
+                            totalSize += file.Value.Length;
                 });
 
                 //return
                 this._logger.LogInformation($"Successfully uploaded{message}");
-                return fileIds;
+                return new UploadFilesResponse(fileIds.ToDictionary(), failedFiles.ToArray(), totalSize);
             }
             catch (Exception ex)
             {
                 //error
-                this._logger.LogError(ex, $"Failed to upload{message}");
-                return null;
+                string error = $"Failed to update blob container {uploadFilesRequest.ContainerName} files{(string.IsNullOrWhiteSpace(uploadFilesRequest.FilePrefix) ? string.Empty : $" with prefix {uploadFilesRequest.FilePrefix}")} to Foundry.";
+                this._logger.LogError(ex, error);
+
+                //return
+                return new UploadFilesResponse(error);
             }
         }
 
         /// <summary>
         /// Waits for a batch of files in a Foundry vector store to be indexed.
         /// </summary>
-        private async Task<string> IndexVectorStoreFilesAsync(string vectorStoreId, ConcurrentDictionary<string, string> fileIds)
+        public async Task<IndexFilesResponse> IndexVectorStoreFilesAsync(IndexFilesRequest indexFilesRequest)
         {
             //initialization
-            ArgumentNullException.ThrowIfNull(fileIds);
-            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
-            string message = $"Foundry vector store {vectorStoreId} indexing of {fileIds.Pluralize("file")}";
+            VectorStoreFileBatch batch = null;
+            ArgumentNullException.ThrowIfNull(indexFilesRequest);
+            ArgumentNullException.ThrowIfNull(indexFilesRequest.FileIds);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(indexFilesRequest.VectorStoreId);
+            string message = $"Foundry vector store {indexFilesRequest.VectorStoreId} indexing of {indexFilesRequest.FileIds.Pluralize("file")}";
 
             try
             {
@@ -1171,11 +1239,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
 
                 //start batched indexing operation
-                VectorStoreFileBatch batch = await vectorStoreClient.AddFileBatchToVectorStoreAsync(vectorStoreId, fileIds.Values);
-                string batchId = batch.BatchId;
-                int checks = 0;
+                batch = await vectorStoreClient.AddFileBatchToVectorStoreAsync(indexFilesRequest.VectorStoreId, indexFilesRequest.FileIds.Values);
+                if (!indexFilesRequest.WaitForCompletion)
+                    return new IndexFilesResponse(batch.BatchId);
 
                 //poll batch
+                int checks = 0;
+                Stopwatch timer = Stopwatch.StartNew();
                 while (batch.Status == VectorStoreFileBatchStatus.InProgress)
                 {
                     //simple timeout check
@@ -1185,36 +1255,41 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                     //poll until batch is completed
                     await Task.Delay(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds);
-                    this._logger.LogInformation($"Batch {batchId} is still indexing files after {checks.Pluralize("check")}.");
+                    this._logger.LogInformation($"Batch {batch.BatchId} is still indexing files after {checks.Pluralize("check")}.");
 
                     //refresh batch
-                    batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(batch.VectorStoreId, batchId);
+                    batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(batch.VectorStoreId, batch.BatchId);
                 }
 
                 //check result
                 if (batch.Status != VectorStoreFileBatchStatus.Completed)
                 {
                     //error
-                    string error = $"Batch {batchId} failed with status: {batch.Status}.";
+                    string error = $"Batch {batch.BatchId} failed with status: {batch.Status}.";
+
+                    //return
                     this._logger.LogError(error);
-                    throw new Exception(error);
+                    return new IndexFilesResponse(batch.BatchId, error);
                 }
                 else
                 {
                     //return
-                    this._logger.LogInformation($"Successfully completed {message} after {(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds * checks).Pluralize("millisecond")}.");
-                    return batchId;
+                    this._logger.LogInformation($"Successfully completed {message} after {timer.Elapsed.TotalMinutes} minutes.");
+                    return new IndexFilesResponse(batch.BatchId, checks, timer.Elapsed.TotalMinutes);
                 }
             }
             catch (Exception ex)
             {
                 //error
                 string error = $"Failed to complete {message}.";
+
+                //return
                 this._logger.LogError(ex, error);
-                throw;
+                return new IndexFilesResponse(batch?.BatchId ?? "N/A", $"{error} {ex.Message}");
             }
         }
-
+        #endregion
+        #region Private Methods
         /// <summary>
         /// Builds a foundry client with the given credential.
         /// </summary>

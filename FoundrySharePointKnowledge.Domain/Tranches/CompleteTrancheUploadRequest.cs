@@ -1,28 +1,25 @@
 using System;
 
-namespace FoundrySharePointKnowledge.Domain.Upload
+namespace FoundrySharePointKnowledge.Domain.Tranches
 {
     /// <summary>
-    /// This holds the result of starting a bulk upload: the created container and a short-lived SAS URL
-    /// the browser uses to upload blobs directly to Azure Storage.
+    /// This holds the metadata needed to record a bulk upload's completed files.
     /// </summary>
-    public record UploadSession
+    public record CompleteTrancheUploadRequest
     {
         #region Initialization
-        public UploadSession(string containerName, string sasURI, DateTimeOffset expiresOn, Guid trancheId)
+        public CompleteTrancheUploadRequest(Guid trancheId, string containerName, string[] fileNames)
         {
             //initialization
-            this.SasURI = sasURI;
             this.TrancheId = trancheId;
-            this.ExpiresOn = expiresOn;
             this.ContainerName = containerName;
+            this.FileNames = fileNames ?? Array.Empty<string>();
         }
         #endregion
         #region Properties
-        public string SasURI { get; init; }
         public Guid TrancheId { get; init; }
+        public string[] FileNames { get; init; }
         public string ContainerName { get; init; }
-        public DateTimeOffset ExpiresOn { get; init; }
         #endregion
         #region Public Methods
         /// <summary>
@@ -31,7 +28,7 @@ namespace FoundrySharePointKnowledge.Domain.Upload
         public override string ToString()
         {
             //return
-            return this.ContainerName ?? "N/A";
+            return $"Tranche {this.TrancheId} completed with {this.FileNames.Length} file(s).";
         }
         #endregion
     }

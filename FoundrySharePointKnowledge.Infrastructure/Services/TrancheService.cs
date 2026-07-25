@@ -12,7 +12,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 
 using FoundrySharePointKnowledge.Common;
-using FoundrySharePointKnowledge.Domain.Upload;
+using FoundrySharePointKnowledge.Domain.Tranches;
 using FoundrySharePointKnowledge.Domain.Contracts;
 
 namespace FoundrySharePointKnowledge.Infrastructure.Services

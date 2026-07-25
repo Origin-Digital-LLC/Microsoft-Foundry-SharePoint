@@ -14,6 +14,7 @@ using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Domain.Foundry.Agents;
 using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
 using Prompt = FoundrySharePointKnowledge.Domain.Foundry.Conversations.Prompt;
+using FoundrySharePointKnowledge.Domain.Foundry.VectorStores;
 
 namespace FoundrySharePointKnowledge.API.Controllers
 {
@@ -187,6 +188,48 @@ namespace FoundrySharePointKnowledge.API.Controllers
                 return this.BadRequest($"Failed to create vector store {name}.");
             else
                 return this.Ok(vectorStoreId);
+        }
+
+        /// <summary>
+        /// Uploads files to a Foundry project.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.UploadFiles)]
+        public async Task<IActionResult> UploadFilesAsync([FromBody()] UploadFilesRequest uploadFilesRequest)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.UploadFilesAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //upload
+                return this.Ok(await this._foundryService.UploadVectorStoreFilesAsync(uploadFilesRequest));
+            }
+            catch (Exception ex)
+            {
+                //error
+                return this.BadRequest($"Failed to upload files to Foundry: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Indexes files in a Foundry project to a vector store.
+        /// </summary>
+        [HttpPost(FSPKConstants.Routing.API.IndexFiles)]
+        public async Task<IActionResult> IndexFilesAsync([FromBody()] IndexFilesRequest indexFilesRequest)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.IndexFilesAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //upload
+                return this.Ok(await this._foundryService.IndexVectorStoreFilesAsync(indexFilesRequest));
+            }
+            catch (Exception ex)
+            {
+                //error
+                return this.BadRequest($"Failed to upload files to Foundry: {ex.Message}");
+            }
         }
 
         /// <summary>
