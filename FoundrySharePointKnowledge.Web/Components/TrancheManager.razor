@@ -1,0 +1,60 @@
+@inherits TrancheManagerBase
+
+@if (this.Tranches.Count == 0)
+{
+    <p class="tranche-empty">No tranches yet.</p>
+}
+else
+{
+    <div class="tranche-table-wrapper">
+        <table class="tranche-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Timestamp</th>
+                    <th>File Count</th>
+                    <th>Total Size</th>
+                    <th>Synchronize</th>
+                    <th>Edit</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (TrancheTableEntity tranche in this.Tranches)
+                {
+                    <tr>
+                        <td><EditTranche Mode="EditTrancheMode.View" Tranche="tranche" /></td>
+                        <td>@tranche.Timestamp?.LocalDateTime.ToString("g")</td>
+                        <td>@tranche.FileCount</td>
+                        <td>@tranche.TotalSize.ToSizeString()</td>
+                        <td>
+                            <button class="tranche-action-button">Synchronize</button>
+                        </td>
+                        <td>
+                            <EditTranche Mode="EditTrancheMode.Edit" Tranche="tranche" Updated="this.StateHasChanged" />
+                        </td>
+                        <td>
+                            <Modal Width="0.3" AutoClose="false" Affirmed="() => this.DeleteTrancheAsync(tranche)">
+                                <ClosedContent Context="openCallback">
+                                    <button class="tranche-delete-button" @onclick="openCallback">Delete</button>
+                                </ClosedContent>
+                                <HeaderContent>
+                                    <h2>Are you sure?</h2>
+                                </HeaderContent>
+                                <MainContent>
+                                    <p>Are you sure you want to delete "@tranche.Name"?</p>
+                                </MainContent>
+                                <FooterContent Context="callbacks">
+                                    <div class="modal-footer-buttons">
+                                        <button class="modal-button modal-button-ok" @onclick="callbacks.OnOk">Yes</button>
+                                        <button class="modal-button modal-button-cancel" @onclick="callbacks.OnCancel">No</button>
+                                    </div>
+                                </FooterContent>
+                            </Modal>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

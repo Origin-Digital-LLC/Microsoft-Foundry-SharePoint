@@ -33,7 +33,13 @@ namespace FoundrySharePointKnowledge.Web
             builder.RootComponents.Add<App>(FSPKConstants.Blazor.ApplicationRoot);
             builder.RootComponents.Add<HeadOutlet>(FSPKConstants.Blazor.HeadOutlet);
 
-            //configure authentication
+            //this API is its own app registration hosted on a different origin than the Blazor app, so the API's
+            //own "access_as_user" scope must be requested explicitly rather than relying on the base address handler
+            string apiClientId = builder.Configuration.GetValue<string>($"{FSPKConstants.Settings.EntraId}:ClientId");
+            string apiScope = $"{FSPKConstants.Security.TokenValidation.APIAudience}{apiClientId}/{FSPKConstants.Security.TokenValidation.Scope}";
+
+            //configure authentication (the api scope is requested separately via the handler below, not here,
+            //since AAD rejects a single token request that spans scopes from more than one resource)
             builder.Services.AddMsalAuthentication(options =>
             {
                 //add foundry scope
@@ -48,12 +54,20 @@ namespace FoundrySharePointKnowledge.Web
                 options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
             });
 
-            //add API http client
+            //add API http client (a plain AuthorizationMessageHandler is required, rather than BaseAddressAuthorizationMessageHandler,
+            //because the API is hosted on a different origin than this Blazor app; that handler only attaches tokens to requests
+            //made to the app's own origin)
             builder.Services.AddHttpClient(api, (client) =>
             {
                 //configure client
                 client.BaseAddress = apiURL;
-            }).AddHttpMessageHandler<BaseAddressAuthorizationMessageHandler>();
+            }).AddHttpMessageHandler(serviceProvider =>
+            {
+                //authorize only calls to the api origin, using the api's own scope
+                AuthorizationMessageHandler handler = serviceProvider.GetRequiredService<AuthorizationMessageHandler>();
+                handler.ConfigureHandler(new string[] { apiURL.ToString() }, new string[] { apiScope });
+                return handler;
+            });
 
             //return
             await builder.Build().RunAsync();

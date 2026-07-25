@@ -21,6 +21,7 @@ using Azure.Identity;
 using Azure.Data.Tables;
 using Azure.AI.Inference;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Azure.Search.Documents;
 using Azure.AI.DocumentIntelligence;
 using Azure.Search.Documents.Indexes;
@@ -195,6 +196,7 @@ namespace FoundrySharePointKnowledge.API
             builder.Services.AddSingleton(sharePointSettings);
             builder.Services.AddScoped<ISearchService, SearchService>();
             builder.Services.AddScoped<IFoundryService, FoundryService>();
+            builder.Services.AddScoped<ITrancheService, TrancheService>();
             builder.Services.AddScoped<ISharePointService, SharePointService>();
 
             //build web app
@@ -245,8 +247,11 @@ namespace FoundrySharePointKnowledge.API
             using ILoggerFactory loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
             ILogger<KeyVaultService> logger = loggerFactory.CreateLogger<KeyVaultService>();
 
-            //return            
-            KeyVaultService keyVaultService = new KeyVaultService(new SecretClient(new Uri(keyVaultURL), new DefaultAzureCredential()), logger);
+            //bare-metal development machines have no Instance Metadata Service, so skip straight to the Visual Studio credential rather than let DefaultAzureCredential probe (and sometimes hard-fail on) managed identity
+            TokenCredential credential = builder.Environment.IsDevelopment() ? new VisualStudioCredential() : new DefaultAzureCredential();
+
+            //return
+            KeyVaultService keyVaultService = new KeyVaultService(new SecretClient(new Uri(keyVaultURL), credential), credential, logger);
             builder.Services.AddSingleton<IKeyVaultService>(keyVaultService);
             return keyVaultService;
         }
@@ -351,10 +356,62 @@ namespace FoundrySharePointKnowledge.API
             //configure client
             options.ConfigureAzureStorageOptions();
 
+            //create client
+            BlobServiceClient blobServiceClient = new BlobServiceClient(blobStorageSettings.ConnectionString, options);
+
+            //allow the browser to upload blobs directly to storage
+            await Program.ConfigureBlobCorsAsync(builder, blobServiceClient);
+
             //return
-            builder.Services.AddSingleton(new BlobServiceClient(blobStorageSettings.ConnectionString, options));
+            builder.Services.AddSingleton(blobServiceClient);
             builder.Services.AddSingleton(blobStorageSettings);
             return blobStorageSettings.ConnectionString;
+        }
+
+        /// <summary>
+        /// Configures a CORS rule so the Blazor web origin can upload blobs directly to storage.
+        /// </summary>
+        private static async Task ConfigureBlobCorsAsync(WebApplicationBuilder builder, BlobServiceClient blobServiceClient)
+        {
+            //since this runs during start up, give it a basic console logger
+            using ILoggerFactory loggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
+            ILogger<Program> logger = loggerFactory.CreateLogger<Program>();
+
+            //reuse the same front-end origins configured for the API's CORS policy
+            string[] origins = builder.Configuration.GetSection(FSPKConstants.Settings.CorsAllowedOrigins)?.Get<string>()?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            string allowedOrigins = origins != null && origins.Length > 0 ? string.Join(",", origins) : null;
+            if (string.IsNullOrWhiteSpace(allowedOrigins))
+            {
+                //fall back to any origin
+                logger.LogWarning($"The '{FSPKConstants.Settings.CorsAllowedOrigins}' configuration key was not found; falling back to '*' for storage CORS.");
+                allowedOrigins = "*";
+            }
+
+            try
+            {
+                //build the CORS rule
+                BlobCorsRule corsRule = new BlobCorsRule()
+                {
+                    MaxAgeInSeconds = 3600,
+                    ExposedHeaders = "*",
+                    AllowedHeaders = "*",
+                    AllowedOrigins = allowedOrigins,
+                    AllowedMethods = "PUT,OPTIONS"
+                };
+
+                //merge the rule into the existing properties
+                BlobServiceProperties properties = await blobServiceClient.GetPropertiesAsync();
+                properties.Cors.Clear();
+                properties.Cors.Add(corsRule);
+
+                //return
+                await blobServiceClient.SetPropertiesAsync(properties);
+            }
+            catch (Exception ex)
+            {
+                //some accounts and emulators reject SetProperties, so do not crash start up
+                logger.LogWarning(ex, "Failed to configure storage CORS; direct browser uploads may be blocked.");
+            }
         }
 
         /// <summary>

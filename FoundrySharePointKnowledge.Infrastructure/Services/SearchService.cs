@@ -1111,7 +1111,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     throw new InvalidOperationException(nameof(migrateStorageAccountsRequest.SourceKeyVaultURL));
 
                 //get source storage account settings
-                KeyVaultService sourceKeyVaultService = new KeyVaultService(new SecretClient(sourceKeyVaultURI, this._entraIDSettings.ToCredential()), this._sourceKeyVaultLogger);
+                TokenCredential sourceCredential = this._entraIDSettings.ToCredential();
+                KeyVaultService sourceKeyVaultService = new KeyVaultService(new SecretClient(sourceKeyVaultURI, sourceCredential), sourceCredential, this._sourceKeyVaultLogger);
                 BlobStorageSettings blobStorageSettings = await sourceKeyVaultService.GetBlobStorageSettingsAsync();
 
                 //create source storage client options

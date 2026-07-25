@@ -26,8 +26,8 @@ using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Foundry;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
-using FoundrySharePointKnowledge.Domain.Foundry.Agents;
 using FoundrySharePointKnowledge.Domain.Foundry.Tools;
+using FoundrySharePointKnowledge.Domain.Foundry.Agents;
 using FoundrySharePointKnowledge.Domain.Foundry.Conversations;
 
 using OpenAI.Files;
@@ -53,7 +53,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
         #endregion
         #region Initialization
-        public FoundryService(BlobServiceClient blobClient, 
+        public FoundryService(BlobServiceClient blobClient,
                               ILogger<FoundryService> logger,
                               EntraIDSettings entraIDSettings,
                               IKeyVaultService keyVaultService,
@@ -1103,6 +1103,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 throw;
             }
         }
+
         #endregion
         #region Private Methods
         /// <summary>

@@ -1,0 +1,68 @@
+@attribute [Route(FSPKConstants.Routing.Blazor.CreateTranche)]
+@inherits CreateTrancheBase
+
+<PageTitle>Create Tranche</PageTitle>
+
+<h1>Create Tranche</h1>
+
+<h2>Tranche Details</h2>
+
+<EditTranche Mode="EditTrancheMode.Create" Draft="this.Draft" Updated="this.StateHasChanged" />
+
+<h2>Include Files</h2>
+
+<div class="drop-zone @(this.HasFiles ? "has-files" : "") @(this.Draft.IsValid ? "" : "disabled")" @ref="this._dropZone">
+    @if (!this.HasFiles)
+    {
+        <span class="drop-zone-placeholder">Drop files or folders here</span>
+    }
+    else
+    {
+        <div class="upload-table-wrapper">
+            <table class="upload-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Size</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (UploadFile file in this.Files)
+                    {
+                        <tr>
+                            <td class="upload-file-name">@file.RelativePath</td>
+                            <td class="upload-file-size">@(((double)file.Size).ToSizeString())</td>
+                            <td class="upload-file-status">@file.Status</td>
+                            <td class="upload-file-progress">
+                                <div class="progress-bar-track">
+                                    <div class="progress-bar-fill" style="width: @($"{(file.Progress * 100):0}%")"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (this.HasFiles)
+{
+    <div class="upload-actions">
+        <button class="upload-button" disabled="@this.Uploading" @onclick="this.CreateTrancheAsync">
+            Create Tranche
+        </button>
+        <button class="cancel-button" @onclick="this.CancelAsync">
+            Cancel
+        </button>
+    </div>
+
+    <div class="overall-progress">
+        <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width: @($"{(this.OverallProgress * 100):0}%")"></div>
+        </div>
+        <span class="overall-progress-label">@($"{(this.OverallProgress * 100):0}%")</span>
+    </div>
+}

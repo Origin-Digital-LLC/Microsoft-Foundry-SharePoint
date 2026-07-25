@@ -339,6 +339,10 @@ namespace FoundrySharePointKnowledge.Common
             public static class Blobs
             {
                 public const int Parallelism = 8;
+                public const int SasExpiryHours = 4;
+                public const int UploadConcurrency = 6;
+                public const int MaxContainerNameLength = 63;
+                public const int UploadCompleteResetDelayMilliseconds = 1500;
                 public const string ImageContainer = "extracted-images";
                 public const string SourceContainer = "sharepoint-ingestion";
             }
@@ -347,6 +351,9 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const int BatchSize = 100;
                 public const string URL = nameof(URL);
+                public const string Tranches = nameof(Tranches);
+                public const string TrancheFiles = nameof(TrancheFiles);
+                public const string DefaultTrancheNameFormat = "New Tranche {0:d}";
                 public const string SharePointListItems = nameof(SharePointListItems);
                 public const string SharePointDeltaTokens = nameof(SharePointDeltaTokens);
                 public const string ExtractedImageMetadata = nameof(ExtractedImageMetadata);
@@ -444,11 +451,15 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class ContentTypes
         {
+            public const string XML = "application/xml";
             public const string CSV = "text/csv";
             public const string PDF = "application/pdf";
             public const string PlainText = "text/plain";
             public const string JSON = "application/json";
+            public const string LegacyDoc = "application/msword";
+            public const string LegacyXls = "application/vnd.ms-excel";
             public const string OctetStream = "application/octet-stream";
+            public const string LegacyPpt = "application/vnd.ms-powerpoint";
             public const string Excel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
             public const string Word = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             public const string PowerPoint = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -475,9 +486,16 @@ namespace FoundrySharePointKnowledge.Common
 
             public static class API
             {
+                public const string Create = "create";
                 public const string Delete = "delete";
                 public const string Upload = "upload";
+                public const string Tranche = "tranche";
+                public const string Complete = "complete";
                 public const string Ingest = "ingest";
+                public const string Cancel = "cancel/{containerName}";
+                public const string Tranches = "tranches";
+                public const string EditTranche = "edit";
+                public const string DeleteTranche = "delete/{containerName}/{trancheId}";
                 public const string Search = "search";
                 public const string Status = "status";
                 public const string Webook = "webhook";
@@ -507,6 +525,7 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string Home = "/";
                 public const string HR = "/hr";
+                public const string CreateTranche = "/create-tranche";
                 public const string NotFound = "/not-found";
                 public const string Expertise = "/expertise";
                 public const string Login = "authentication/login";

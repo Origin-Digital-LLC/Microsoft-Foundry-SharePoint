@@ -1,0 +1,43 @@
+@inherits ModalBase
+
+@if (this.IsOpen)
+{
+    <div class="modal-backdrop" @onclick="this.HandleBackdropClick">
+        <div class="modal-dialog" style="width: @this.WidthPercentageStyle;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                @if (this.HeaderContent != null)
+                {
+                    @this.HeaderContent
+                }
+                else
+                {
+                    <h2 class="modal-title">@this.Title</h2>
+                }
+            </div>
+            <div class="modal-body">
+                @this.MainContent
+            </div>
+            <div class="modal-footer">
+                @if (this.FooterContent != null)
+                {
+                    @this.FooterContent(this.FooterCallbacks)
+                }
+                else
+                {
+                    <div class="modal-footer-buttons">
+                        <button class="modal-button modal-button-ok" @onclick="this.HandleOkAsync">OK</button>
+                        <button class="modal-button modal-button-cancel" @onclick="this.HandleCancelAsync">Cancel</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+else if (this.ClosedContent != null)
+{
+    @this.ClosedContent(this.OpeningCallback)
+}
+else
+{
+    <button class="modal-open-button" @onclick="this.HandleOpeningAsync">@this.ButtonText</button>
+}

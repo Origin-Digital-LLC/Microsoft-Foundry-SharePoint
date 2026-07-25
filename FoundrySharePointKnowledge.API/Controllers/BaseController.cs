@@ -12,7 +12,7 @@ namespace FoundrySharePointKnowledge.API.Controllers
     /// <summary>
     /// This is the base class for all controllers.
     /// </summary>
-#if DEBUG
+#if !DEBUG
     [AllowAnonymous()]
 #else
     [Authorize()]

@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
 using Azure;
-using Azure.Identity;
+using Azure.Core;
 using Azure.Security.KeyVault.Secrets;
 
 using FoundrySharePointKnowledge.Common;
@@ -22,14 +22,17 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
     {
         #region Members
         private readonly SecretClient _secretClient;
+        private readonly TokenCredential _credential;
         private readonly ILogger<KeyVaultService> _logger;
         #endregion
         #region Initialization
         public KeyVaultService(SecretClient secretClient,
+                               TokenCredential credential,
                                ILogger<KeyVaultService> logger)
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this._credential = credential ?? throw new ArgumentNullException(nameof(credential));
             this._secretClient = secretClient ?? throw new ArgumentNullException(nameof(secretClient));
         }
         #endregion
@@ -49,7 +52,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //parse url
                 if (Uri.TryCreate(keyVaultURL, UriKind.Absolute, out Uri keyVaultURI))
-                    secretClient = new SecretClient(keyVaultURI, new DefaultAzureCredential());
+                    secretClient = new SecretClient(keyVaultURI, this._credential);
                 else
                     throw new Exception($"{keyVaultURL} is not a valid Key Vault URI.");
             }

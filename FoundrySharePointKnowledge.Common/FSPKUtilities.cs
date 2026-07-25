@@ -189,12 +189,71 @@ namespace FoundrySharePointKnowledge.Common
         /// <summary>
         /// Bulk uploads entities to an Azure Storage Table.
         /// </summary>
-        public static async Task PerformBulkTableTansactionAsync<T>(this TableClient client, List<T> entities) where T : ITableEntity
+        public static async Task PerformBulkTableTansactionAsync<T>(this TableClient client, List<T> entities, TableTransactionActionType actionType = TableTransactionActionType.UpsertReplace) where T : ITableEntity
         {
             //return
             foreach (IGrouping<string, T> group in entities.GroupBy(e => e.PartitionKey))
                 foreach (T[] batch in group.Chunk(FSPKConstants.AzureStorage.Tables.BatchSize))
-                    await client.SubmitTransactionAsync(batch.Select(e => new TableTransactionAction(TableTransactionActionType.UpsertReplace, e)));
+                    await client.SubmitTransactionAsync(batch.Select(e => new TableTransactionAction(actionType, e)));
+        }
+
+        /// <summary>
+        /// Sanitizes a relative file path into a valid Azure Storage Table RowKey by replacing the
+        /// forward slashes Table Storage forbids with the conventional "!" substitute.
+        /// </summary>
+        public static string ToTableRowKey(this string relativeFilePath)
+        {
+            //return
+            return relativeFilePath?.Replace('/', '!');
+        }
+
+        /// <summary>
+        /// Infers a content type from a file name's extension.
+        /// </summary>
+        public static string GetContentType(this string fileName)
+        {
+            //return
+            return Path.GetExtension(fileName)?.ToLowerInvariant() switch
+            {
+                //map known extensions
+                FSPKConstants.Extensions.CSV => FSPKConstants.ContentTypes.CSV,
+                FSPKConstants.Extensions.PDF => FSPKConstants.ContentTypes.PDF,
+                FSPKConstants.Extensions.TXT => FSPKConstants.ContentTypes.PlainText,
+                FSPKConstants.Extensions.JSON => FSPKConstants.ContentTypes.JSON,
+                FSPKConstants.Extensions.XML => FSPKConstants.ContentTypes.XML,
+                FSPKConstants.Extensions.DOC => FSPKConstants.ContentTypes.LegacyDoc,
+                FSPKConstants.Extensions.XLS => FSPKConstants.ContentTypes.LegacyXls,
+                FSPKConstants.Extensions.PPT => FSPKConstants.ContentTypes.LegacyPpt,
+                FSPKConstants.Extensions.XLSX => FSPKConstants.ContentTypes.Excel,
+                FSPKConstants.Extensions.DOCX => FSPKConstants.ContentTypes.Word,
+                FSPKConstants.Extensions.PPTX => FSPKConstants.ContentTypes.PowerPoint,
+
+                //unknown extension
+                _ => FSPKConstants.ContentTypes.OctetStream
+            };
+        }
+        #endregion
+        #region Formatting
+        /// <summary>
+        /// Formats a byte count into a human-readable string.
+        /// </summary>
+        public static string ToSizeString(this double bytes)
+        {
+            //initialization
+            string[] units = new string[] { "B", "KB", "MB", "GB", "TB" };
+            double size = bytes;
+            int unit = 0;
+
+            //scale down
+            while (size >= 1024 && unit < units.Length - 1)
+            {
+                //advance
+                size = size / 1024;
+                unit++;
+            }
+
+            //return
+            return $"{size:0.#} {units[unit]}";
         }
         #endregion
         #region Pluralization
@@ -397,10 +456,10 @@ namespace FoundrySharePointKnowledge.Common
                     string text = element.Value?.Trim() ?? string.Empty;
 
                     //append to JSON
-                    if (jsonObject.Count > 0 && !string.IsNullOrEmpty(text))
+                    if (jsonObject.Count > 0 && !string.IsNullOrWhiteSpace(text))
                         jsonObject["#text"] = JsonValue.Create(text);
                     else if (jsonObject.Count == 0)
-                        return string.IsNullOrEmpty(text) ? null : JsonValue.Create(text);
+                        return string.IsNullOrWhiteSpace(text) ? null : JsonValue.Create(text);
                 }
 
                 //return

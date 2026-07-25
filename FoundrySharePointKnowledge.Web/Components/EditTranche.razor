@@ -1,0 +1,21 @@
+@inherits EditTrancheBase
+
+@if (this.Mode == EditTrancheMode.View)
+{
+    <span class="tranche-name-view">@this.Tranche?.Name</span>
+}
+else if (this.Mode == EditTrancheMode.Edit)
+{
+    <Modal Width="0.3" AutoClose="false" Title="Edit Tranche" Opening="this.BeginEdit" Affirmed="this.SaveAsync">
+        <ClosedContent Context="openCallback">
+            <button class="tranche-action-button" @onclick="openCallback">Edit</button>
+        </ClosedContent>
+        <MainContent>
+            <input class="tranche-edit-input" @bind:get="this.EditedName" @bind:set="this.SetEditedName" @bind:event="oninput" />
+        </MainContent>
+    </Modal>
+}
+else
+{
+    <input class="tranche-edit-input" @bind:get="this.Draft.Name" @bind:set="this.SetDraftNameAsync" @bind:event="oninput" placeholder="Tranche name" />
+}
