@@ -35,6 +35,7 @@ This will create a Microsoft Foundry vector store synchronized from a Tranche's 
   - Pull all `TrancheFileTableEntity` from Azure Tables entities by the TrancheId partition key.
   - Loop through all FileIds and match the corresponding `TrancheFileTableEntity`. If one is found, update it's FileId with the value of corresponding key in FileIds. If not, log a warning.
   - Make this as parallel and efficient as possible.
+- Wire up UpdateFilesAsync behind a new API endpoint in TrancheController under the route /update-tranche-files. 
 
 ## Frontend
 
@@ -76,7 +77,7 @@ This is a new Blazor component that acts performs a synchronization of a blob co
       - Otherwise, render text saying "TODO: index progress"
   4. FilesIndexed
     - Header: Reset Files
-    - Content: Render a button labeled "Reset." This click will call the /reset-files endpoint on the FoundryController.
+    - Content: Render a button labeled "Reset." This click will call the /reset-files endpoint on the FoundryController, guarded by another "Are You Sure" Modal like you did for Tranche deletion. Modal might need to be updated to support "nested" popups...
 
 ### Tranche Manager
 
