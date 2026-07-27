@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -144,8 +143,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
             try
             {
-                //delete the container if it exists
+                //delete the container and whatever markdown was converted from it, since a cancelled upload
+                //leaves nothing worth keeping behind
                 await this._blobClient.GetBlobContainerClient(containerName).DeleteIfExistsAsync();
+                await this._blobClient.GetBlobContainerClient(containerName.ToMarkdownContainerName()).DeleteIfExistsAsync();
                 this._logger.LogInformation($"Cancelled upload and deleted container {containerName}.");
             }
             catch (Exception ex)
@@ -194,11 +195,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         /// it goes; this is meant to be run in the background, so it reports failure through the tranche's
         /// progress rather than by throwing.
         /// </summary>
-        public async Task UploadTrancheFilesAsync(UploadFilesRequest request)
+        public async Task UploadTrancheFilesAsync(UploadFilesRequest request, CancellationToken cancellationToken)
         {
             //initialization
-            ArgumentNullException.ThrowIfNull(request);
             int lastReportedPercentage = -1;
+            ArgumentNullException.ThrowIfNull(request);
             this._logger.LogInformation($"Starting the background upload of tranche {request.TrancheId}.");
 
             //this records whole percentage points only, since a per-file write would hammer the table for
@@ -242,7 +243,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             try
             {
                 //upload the tranche's blobs into the foundry project
-                UploadFilesResponse response = await this._foundryService.UploadVectorStoreFilesAsync(request, reportProgressAsync);
+                UploadFilesResponse response = await this._foundryService.UploadVectorStoreFilesAsync(request, reportProgressAsync, cancellationToken);
                 if (response == null || !string.IsNullOrWhiteSpace(response.Error))
                 {
                     //error
@@ -377,45 +378,21 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             //initialization
             ArgumentNullException.ThrowIfNull(request);
             ArgumentNullException.ThrowIfNull(request.FileIds);
+            Dictionary<string, TrancheFileTableEntity> files = new Dictionary<string, TrancheFileTableEntity>();
+            Dictionary<string, TrancheFileTableEntity> matches = new Dictionary<string, TrancheFileTableEntity>();
             this._logger.LogInformation($"Updating {request.FileIds.Pluralize("file")} for tranche {request.TrancheId}.");
-
-            //this mirrors the file name transformations applied when files are uploaded to a vector store
-            string toUploadedFileName(string rowKey)
-            {
-                //undo the row key sanitization, since uploads replace path separators with hyphens
-                string fileName = rowKey.Replace('!', '-');
-
-                //plaintext files are uploaded with an explicit TXT extension
-                switch (Path.GetExtension(fileName).ToLowerInvariant())
-                {
-                    //represent all plaintext files explicitly as TXT
-                    case FSPKConstants.Extensions.CSV:
-                    case FSPKConstants.Extensions.XML:
-                    case FSPKConstants.Extensions.JSON:
-                        fileName = $"{fileName}{FSPKConstants.Extensions.TXT}";
-                        break;
-                }
-
-                //return
-                return fileName;
-            }
 
             //collect every file tracked for this tranche
             TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
-            Dictionary<string, TrancheFileTableEntity> files = new Dictionary<string, TrancheFileTableEntity>();
             await foreach (TrancheFileTableEntity file in trancheFiles.QueryAsync<TrancheFileTableEntity>(f => f.PartitionKey == request.TrancheId.ToString()))
-            {
-                //index each file by its row key and by the name it was uploaded under
                 files[file.RowKey] = file;
-                files[toUploadedFileName(file.RowKey)] = file;
-            }
 
             //match every uploaded file to its tracked record, keyed by row key so no record is updated twice
-            Dictionary<string, TrancheFileTableEntity> matches = new Dictionary<string, TrancheFileTableEntity>();
             foreach (KeyValuePair<string, string> fileId in request.FileIds)
             {
-                //find the tracked record for this uploaded file
-                if (!files.TryGetValue(fileId.Key, out TrancheFileTableEntity file) && !files.TryGetValue(fileId.Key.ToTableRowKey(), out file))
+                //an upload reports each file under the source path it was converted from, which is the same
+                //path a file was tracked under, so the two only differ by the row key's sanitization
+                if (!files.TryGetValue(fileId.Key.ToTableRowKey(), out TrancheFileTableEntity file))
                 {
                     //no match
                     this._logger.LogWarning($"Unable to match uploaded file {fileId.Key} to a tracked file in tranche {request.TrancheId}.");
@@ -465,8 +442,10 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             ArgumentNullException.ThrowIfNullOrWhiteSpace(containerName);
             this._logger.LogInformation($"Deleting tranche {trancheId} and container {containerName}.");
 
-            //delete the blob container if it exists
+            //delete the blob container and the markdown converted from it, which outlives its source
+            //otherwise and would be billed for indefinitely
             await this._blobClient.GetBlobContainerClient(containerName).DeleteIfExistsAsync();
+            await this._blobClient.GetBlobContainerClient(containerName.ToMarkdownContainerName()).DeleteIfExistsAsync();
 
             //delete every tracked file for this tranche
             TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
@@ -494,8 +473,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         #endregion
         #region Private Methods
         /// <summary>
-        /// Loads the Foundry file identifiers recorded against a tranche's tracked files, keyed by the name
-        /// each file was uploaded under.
+        /// Loads the Foundry file identifiers recorded against a tranche's tracked files, keyed by the row key
+        /// of the source each one was converted from.
         /// </summary>
         private async Task<Dictionary<string, string>> LoadFileIdsAsync(Guid trancheId)
         {
@@ -612,8 +591,9 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             if (string.IsNullOrWhiteSpace(sanitized))
                 sanitized = defaultUserName;
 
-            //truncate the user portion so the full "name-{guid}" fits within the container name limit (a "N" guid is 32 characters plus a hyphen)
-            int maxUserLength = FSPKConstants.AzureStorage.Blobs.MaxContainerNameLength - Guid.Empty.ToString("N").Length - 1;
+            //truncate the user portion so the full "name-{guid}" fits within the container name limit (a "N" guid is 32 characters plus a hyphen), leaving
+            //room for the suffix the converted markdown's own container adds to it
+            int maxUserLength = FSPKConstants.AzureStorage.Blobs.MaxContainerNameLength - Guid.Empty.ToString("N").Length - 1 - FSPKConstants.Foundry.DocumentIntelligence.MarkdownContainerSuffix.Length;
             if (sanitized.Length > maxUserLength)
                 sanitized = sanitized.Substring(0, maxUserLength).TrimEnd('-');
 

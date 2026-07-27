@@ -8,6 +8,7 @@ using System.Reflection;
 using System.ClientModel;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -157,6 +158,66 @@ namespace FoundrySharePointKnowledge.Common
                 //error
                 return new AggregateException("Failed to run task batch.", ex);
             }
+        }
+        #endregion
+        #region Storage
+        /// <summary>
+        /// Names the container holding a tranche's converted markdown, which is kept apart from the tranche's
+        /// own files so nothing a user uploads can ever be mistaken for or overwritten by it.
+        /// </summary>
+        public static string ToMarkdownContainerName(this string containerName)
+        {
+            //initialization
+            if (string.IsNullOrWhiteSpace(containerName))
+                throw new ArgumentNullException(nameof(containerName));
+
+            //a source container is named right up to the limit, so the suffix has to displace the tail of it
+            //rather than run past the end
+            int maxSourceLength = FSPKConstants.AzureStorage.Blobs.MaxContainerNameLength - FSPKConstants.Foundry.DocumentIntelligence.MarkdownContainerSuffix.Length;
+            if (containerName.Length > maxSourceLength)
+                containerName = containerName.Substring(0, maxSourceLength).TrimEnd('-');
+
+            //return
+            return $"{containerName}{FSPKConstants.Foundry.DocumentIntelligence.MarkdownContainerSuffix}";
+        }
+
+        /// <summary>
+        /// Flattens a blob's path into a single file name, since a vector store presents what it indexes as a
+        /// flat list rather than as the folders the files were uploaded from.
+        /// </summary>
+        public static string ToFlattenedFileName(this string blobName)
+        {
+            //return
+            return blobName?.Replace('/', '-');
+        }
+
+        /// <summary>
+        /// Names the markdown a blob is converted into. Flattening is lossy, so a name that more than one
+        /// source lays claim to takes a fingerprint of the path it came from to tell the two apart.
+        /// </summary>
+        public static string ToMarkdownFileName(this string blobName, bool disambiguate)
+        {
+            //initialization
+            if (string.IsNullOrWhiteSpace(blobName))
+                throw new ArgumentNullException(nameof(blobName));
+
+            //return
+            string flattenedName = blobName.ToFlattenedFileName();
+            if (disambiguate)
+                flattenedName = $"{flattenedName}-{blobName.ToShortHash(FSPKConstants.Foundry.DocumentIntelligence.ShortHashLength)}";
+
+            return $"{flattenedName}{FSPKConstants.Extensions.MD}";
+        }
+
+        /// <summary>
+        /// Reduces a string to a short, stable hexadecimal fingerprint, which tells apart names that would
+        /// otherwise be identical without making either of them unreadable.
+        /// </summary>
+        public static string ToShortHash(this string value, int length)
+        {
+            //return
+            byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(value ?? string.Empty));
+            return Convert.ToHexString(hash).Substring(0, length).ToLowerInvariant();
         }
         #endregion
         #region URLs

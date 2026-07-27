@@ -229,11 +229,11 @@ namespace FoundrySharePointKnowledge.API.Controllers
                 });
 
                 //hand the upload off to a background worker, which resolves its own services
-                this._backgroundQueue.Enqueue(async (serviceProvider, _) =>
+                this._backgroundQueue.Enqueue(async (serviceProvider, cancellationToken) =>
                 {
                     //upload
                     ITrancheService trancheService = serviceProvider.GetRequiredService<ITrancheService>();
-                    await trancheService.UploadTrancheFilesAsync(uploadFilesRequest);
+                    await trancheService.UploadTrancheFilesAsync(uploadFilesRequest, cancellationToken);
                 });
 
                 //return

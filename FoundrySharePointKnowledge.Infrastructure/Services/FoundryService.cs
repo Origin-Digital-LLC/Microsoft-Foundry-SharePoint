@@ -53,14 +53,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         private readonly EntraIDSettings _entraIDSettings;
         private readonly IKeyVaultService _keyVaultService;
         private readonly FoundryProjectSettings _foundryProjectSettings;
-
+        private readonly IDocumentIntelligenceManager _documentIntelligenceManager;
         #endregion
         #region Initialization
         public FoundryService(BlobServiceClient blobClient,
                               ILogger<FoundryService> logger,
                               EntraIDSettings entraIDSettings,
                               IKeyVaultService keyVaultService,
-                              FoundryProjectSettings foundryProjectSettings)
+                              FoundryProjectSettings foundryProjectSettings,
+                              IDocumentIntelligenceManager documentIntelligenceManager)
         {
             //initialization
             this._logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -68,6 +69,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             this._entraIDSettings = entraIDSettings ?? throw new ArgumentNullException(nameof(entraIDSettings));
             this._keyVaultService = keyVaultService ?? throw new ArgumentNullException(nameof(keyVaultService));
             this._foundryProjectSettings = foundryProjectSettings ?? throw new ArgumentNullException(nameof(foundryProjectSettings));
+            this._documentIntelligenceManager = documentIntelligenceManager ?? throw new ArgumentNullException(nameof(documentIntelligenceManager));
         }
         #endregion
         #region Public Methods
@@ -1109,11 +1111,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         //}
 
         /// <summary>
-        /// Uploads a tranche's blobs into a Foundry project, reporting how many of how many files have been
-        /// dealt with so a caller running this in the background can record its progress; the total is only
-        /// known once the container has been listed, so it is reported alongside every count.
+        /// Uploads a tranche's blobs into a Foundry project as markdown, reporting how many of how many files
+        /// have been dealt with so a caller running this in the background can record its progress; the total
+        /// is only known once the container has been listed, so it is reported alongside every count.
         /// </summary>
-        public async Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest, Func<int, int, Task> reportProgressAsync)
+        public async Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest, Func<int, int, Task> reportProgressAsync, CancellationToken cancellationToken)
         {
             //initialization
             ArgumentNullException.ThrowIfNull(uploadFilesRequest);
@@ -1123,99 +1125,121 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             try
             {
                 //get container
-                int totalSize = 0;
-                int uploadedCount = 0;
-                List<string> failedFiles = new List<string>();
-                Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
+                long totalSize = 0;
+                int completedCount = 0;
+                ConcurrentBag<string> failedFiles = new ConcurrentBag<string>();
+                ConcurrentDictionary<string, string> fileIds = new ConcurrentDictionary<string, string>();
+                List<BlobItem> sourceBlobs = new List<BlobItem>();
                 BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(uploadFilesRequest.ContainerName);
-                ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>> blobs = new ConcurrentDictionary<string, Task<Response<BlobDownloadResult>>>();
 
-                //download all blobs
-                await containerClient.CreateIfNotExistsAsync();
+                //list the container without reading any of it, since holding every blob's bytes at once is
+                //what a container of any real size cannot afford
+                await containerClient.CreateIfNotExistsAsync(PublicAccessType.None, null, null, cancellationToken);
                 await foreach (BlobItem blob in containerClient.GetBlobsAsync(new GetBlobsOptions()
                 {
-                    //assemble object                
+                    //assemble object
                     Prefix = uploadFilesRequest.FilePrefix
-                }))
+                }, cancellationToken))
                 {
-                    //download each blob
-                    this._logger.LogInformation($"Downloading {blob.Name}.");
-                    blobs.TryAdd(blob.Name, containerClient.GetBlobClient(blob.Name).DownloadContentAsync());
-                }
-
-                //wait for work to finish
-                AggregateException downloadError = await blobs.Values.WhenAllAsync();
-                if (downloadError != null)
-                    throw downloadError;
-
-                //get blob contents           
-                foreach (string fileName in blobs.Keys)
-                {
-                    //check each file
-                    Response<BlobDownloadResult> file = blobs[fileName].Result;
-                    string error = await file.GetResponseErrorAsync($"Failed to download {fileName} from {containerClient.Uri}.");
-
-                    //collect each file and track errors
-                    if (!string.IsNullOrWhiteSpace(error))
+                    //an empty blob has nothing to convert, so it is a failure rather than work
+                    long blobSize = blob.Properties?.ContentLength ?? 0;
+                    if (blobSize <= 0)
                     {
                         //error
-                        failedFiles.Add(fileName);
-                        this._logger.LogWarning($"Failed to upload file {fileName}: {error}.");
+                        failedFiles.Add(blob.Name);
+                        this._logger.LogWarning($"Skipped empty file {blob.Name}.");
+                        continue;
                     }
-                    else
-                    {
-                        //collect file bytes
-                        files.Add(fileName, file.Value.Content.ToArray());
-                    }
+
+                    //collect the work this file represents
+                    sourceBlobs.Add(blob);
                 }
 
-                //upload files
-                ConcurrentDictionary<string, string> fileIds = new ConcurrentDictionary<string, string>();
-                string message = $" {files.Pluralize("file")} to {this._foundryProjectSettings.ProjectEndpoints[0].ToString()}.";
-               
+                //a vector store presents a flat list, and flattening a path throws away the difference
+                //between "reports/q1.pdf" and "reports-q1.pdf"; the names more than one source lays claim to
+                //can only be found with the whole container in hand, so they are settled here rather than by
+                //each conversion, which sees one file and cannot know what it collides with
+                HashSet<string> collidingNames = sourceBlobs.GroupBy(blob => blob.Name.ToFlattenedFileName())
+                                                            .Where(nameGroup => nameGroup.Count() > 1)
+                                                            .Select(nameGroup => nameGroup.Key)
+                                                            .ToHashSet();
+
+                if (collidingNames.Count > 0)
+                    this._logger.LogInformation($"Fingerprinting the sources behind {collidingNames.Pluralize("flattened name")} that more than one file would otherwise share.");
+
+                //name what the vector store will see, giving a colliding name a fingerprint of the path it
+                //came from so every source stays tellable apart from the rest
+                List<MarkdownConversionRequest> conversionRequests = sourceBlobs.Select(blob => new MarkdownConversionRequest(uploadFilesRequest.ContainerName,
+                                                                                                                             blob.Name,
+                                                                                                                             blob.Name.ToMarkdownFileName(collidingNames.Contains(blob.Name.ToFlattenedFileName())),
+                                                                                                                             blob.Properties?.ETag?.ToString(),
+                                                                                                                             blob.Properties?.ContentLength ?? 0)).ToList();
+
+                //files rejected by the listing are already dealt with, so they count towards the progress the
+                //caller is owed rather than being quietly dropped from it
+                completedCount = failedFiles.Count;
+                int totalFiles = conversionRequests.Count + completedCount;
+                string message = $" {conversionRequests.Pluralize("file")} to {this._foundryProjectSettings.ProjectEndpoints[0].ToString()}.";
+
                 //get foundry clients
                 AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
                 ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
                 OpenAIFileClient fileClient = openAIClient.GetOpenAIFileClient();
-                this._logger.LogInformation($"Starting to upload{message}.");
+                this._logger.LogInformation($"Starting to upload{message}");
 
-                //get all files
-                await Parallel.ForEachAsync(files, new ParallelOptions()
+                //run each file through its own download, conversion and upload rather than staging the whole
+                //container between steps, which caps memory at the degree of parallelism times the largest
+                //file and lets a slow conversion hold up nothing but itself
+                await Parallel.ForEachAsync(conversionRequests, new ParallelOptions()
                 {
                     //assemble object
-                    MaxDegreeOfParallelism = FSPKConstants.AzureStorage.Blobs.Parallelism
-                }, async (file, _) =>
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = FSPKConstants.Foundry.DocumentIntelligence.MaxDegreeOfParallelism
+                }, async (conversionRequest, token) =>
                 {
-                    //process file
-                    string fileName = file.Key.Replace('/', '-');
-                    string fileExtension = Path.GetExtension(fileName).ToLowerInvariant();
-
-                    //handle text files
-                    switch (fileExtension)
+                    try
                     {
-                        //represent all plaintext files explicitly as TXT
-                        case FSPKConstants.Extensions.CSV:
-                        case FSPKConstants.Extensions.XML:
-                        case FSPKConstants.Extensions.JSON:
-                            fileName = $"{fileName}{FSPKConstants.Extensions.TXT}";
-                            break;
+                        //convert the file to the markdown the vector store indexes best
+                        MarkdownConversion conversion = await this._documentIntelligenceManager.ConvertToMarkdownAsync(conversionRequest, token);
+                        if (!conversion.IsSuccessful)
+                        {
+                            //error
+                            failedFiles.Add(conversionRequest.BlobName);
+                            this._logger.LogWarning($"Failed to convert {conversionRequest.BlobName} to markdown: {conversion.Error}.");
+                            return;
+                        }
+
+                        //upload the markdown, not the file it came from, but report it against the source it
+                        //was converted from, which is the only name a caller tracking these files knows
+                        ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(conversion.Content.ToStream(), conversion.MarkdownName, FileUploadPurpose.Assistants);
+                        if (uploadedFile.EnsureSuccess($"Failed to upload {conversion.MarkdownName}", this._logger, false) && fileIds.TryAdd(conversionRequest.BlobName, uploadedFile.Value.Id))
+                            Interlocked.Add(ref totalSize, conversion.Size);
+                        else
+                            failedFiles.Add(conversionRequest.BlobName);
                     }
-
-                    //upload each file
-                    ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(new MemoryStream(file.Value), fileName, FileUploadPurpose.Assistants);
-                    if (uploadedFile.EnsureSuccess($"Failed to upload {file.Key}", this._logger, false))
-                        if (fileIds.TryAdd(fileName, uploadedFile.Value.Id))
-                            Interlocked.Add(ref totalSize, file.Value.Length);
-
-                    //report how many files have been dealt with, counting a failed upload as dealt with so a
-                    //partly failed set of files still reaches the end of its progress
-                    int completed = Interlocked.Increment(ref uploadedCount);
-                    if (reportProgressAsync != null)
-                        await reportProgressAsync(completed, files.Count);
+                    catch (OperationCanceledException)
+                    {
+                        //the whole operation is being abandoned, so this file is not a failure of its own
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        //one unreadable file must not cost the tranche every other file's work
+                        failedFiles.Add(conversionRequest.BlobName);
+                        this._logger.LogWarning(ex, $"Failed to upload file {conversionRequest.BlobName}.");
+                    }
+                    finally
+                    {
+                        //report how many files have been dealt with, counting a failed file as dealt with so a
+                        //partly failed set of files still reaches the end of its progress
+                        int completed = Interlocked.Increment(ref completedCount);
+                        if (reportProgressAsync != null)
+                            await reportProgressAsync(completed, totalFiles);
+                    }
                 });
 
                 //return
-                this._logger.LogInformation($"Successfully uploaded{message}");
+                this._logger.LogInformation($"Successfully uploaded {fileIds.Pluralize("file")} with {failedFiles.Pluralize("failure")}.");
                 return new UploadFilesResponse(fileIds.ToDictionary(), failedFiles.ToArray(), totalSize);
             }
             catch (Exception ex)

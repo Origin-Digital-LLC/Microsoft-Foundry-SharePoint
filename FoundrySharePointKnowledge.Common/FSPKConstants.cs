@@ -428,6 +428,67 @@ namespace FoundrySharePointKnowledge.Common
             {
                 public const string AnalyzeFilesFormat = "Analyze all files whose names start with: {0}.";
             }
+
+            public static class DocumentIntelligence
+            {
+                public const int MaxRetries = 6;
+                public const int ShortHashLength = 8;
+                public const int BlobListingPageSize = 500;
+                public const int MaxDegreeOfParallelism = 8;
+                public const string MarkdownContainerSuffix = "-markdown";
+                public const string CodeFenceFormat = "```{0}\n{1}\n```";
+                public const string SourceETagMetadata = nameof(SourceETagMetadata);
+                public const long MaxFileSizeBytes = 500L * 1024 * 1024;
+                public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
+                public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(30);
+
+                /// <summary>
+                /// These are converted to markdown by the prebuilt layout model.
+                /// </summary>
+                public static readonly string[] AnalyzableExtensions = new string[]
+                {
+                    //assemble array
+                    Extensions.PDF,
+                    Extensions.DOCX,
+                    Extensions.XLSX,
+                    Extensions.PPTX,
+                    Extensions.HTM,
+                    Extensions.HTML,
+                    Extensions.BMP,
+                    Extensions.PNG,
+                    Extensions.JPG,
+                    Extensions.JPEG,
+                    Extensions.TIF,
+                    Extensions.TIFF,
+                    Extensions.HEIF
+                };
+
+                /// <summary>
+                /// These are already text, so they are renamed to markdown rather than sent for analysis,
+                /// which the prebuilt layout model rejects for these types anyway.
+                /// </summary>
+                public static readonly string[] PassthroughExtensions = new string[]
+                {
+                    //assemble array
+                    Extensions.MD,
+                    Extensions.TXT,
+                    Extensions.CSV,
+                    Extensions.XML,
+                    Extensions.JSON
+                };
+
+                /// <summary>
+                /// These pass through wrapped in a fenced code block, since chunking structured text as prose
+                /// would shred the structure that makes it worth indexing.
+                /// </summary>
+                public static readonly string[] FencedExtensions = new string[]
+                {
+                    //assemble array
+                    Extensions.CSV,
+                    Extensions.XML,
+                    Extensions.JSON
+                };
+            }
         }
 
         public static class Graph
@@ -457,6 +518,7 @@ namespace FoundrySharePointKnowledge.Common
             public const string XML = "application/xml";
             public const string CSV = "text/csv";
             public const string PDF = "application/pdf";
+            public const string Markdown = "text/markdown";
             public const string PlainText = "text/plain";
             public const string JSON = "application/json";
             public const string LegacyDoc = "application/msword";
@@ -470,6 +532,7 @@ namespace FoundrySharePointKnowledge.Common
 
         public static class Extensions
         {
+            public const string MD = ".md";
             public const string PDF = ".pdf";
             public const string DOC = ".doc";
             public const string XLS = ".xls";
@@ -477,10 +540,19 @@ namespace FoundrySharePointKnowledge.Common
             public const string PPT = ".ppt";
             public const string CSV = ".csv";
             public const string XML = ".xml";
+            public const string BMP = ".bmp";
+            public const string PNG = ".png";
+            public const string JPG = ".jpg";
+            public const string TIF = ".tif";
+            public const string HTM = ".htm";
             public const string XLSX = ".xlsx";
             public const string DOCX = ".docx";
             public const string PPTX = ".pptx";
             public const string JSON = ".json";
+            public const string JPEG = ".jpeg";
+            public const string TIFF = ".tiff";
+            public const string HEIF = ".heif";
+            public const string HTML = ".html";
         }
 
         public static class Routing
@@ -590,9 +662,9 @@ namespace FoundrySharePointKnowledge.Common
                 public const string BuildingIndex = "Building index...";
                 public const string IndexCancelled = "Indexing Cancelled.";
                 public const string IndexCompleted = "Indexing Completed.";
-                public const string ProcessingStarting = "Opening Vector Store...";
                 public const string IndexProgressFormat = "Indexed {0} of {1} files.";
                 public const string ProcessProgressFormat = "Processed {0} of {1} files.";
+                public const string ProcessingStarting = "Converting files to markdown...";
                 public const string UploadedFilesFormat = "Successfully processed {0} files.";
                 public const string VectorStoreFormat = "Vector Store {0} successfully created.";
                 public const string UploadProgressFormat = "Successfully uploaded {0} of {1} files.";

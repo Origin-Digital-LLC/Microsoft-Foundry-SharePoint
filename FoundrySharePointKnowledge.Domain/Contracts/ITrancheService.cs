@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 using FoundrySharePointKnowledge.Domain.Tranches;
@@ -11,7 +12,7 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
         #region Methods
         Task CancelUploadAsync(string containerName);
         Task EditTrancheAsync(EditTrancheRequest request);
-        Task UploadTrancheFilesAsync(UploadFilesRequest request);
+        Task UploadTrancheFilesAsync(UploadFilesRequest request, CancellationToken cancellationToken);
         Task IndexTrancheFilesAsync(IndexFilesRequest request);
         Task<UpdateFilesResponse> UpdateFilesAsync(UpdateFilesRequest request);
         Task<TrancheTableEntity[]> LoadTranchesAsync(string userName);

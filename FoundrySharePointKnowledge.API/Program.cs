@@ -197,6 +197,7 @@ namespace FoundrySharePointKnowledge.API
             builder.Services.AddSingleton(sharePointSettings);
             builder.Services.AddSingleton<IBackgroundQueue, BackgroundQueue>();
             builder.Services.AddHostedService<BackgroundQueueProcessor>();
+            builder.Services.AddSingleton<IDocumentIntelligenceManager, DocumentIntelligenceManager>();
             builder.Services.AddScoped<ISearchService, SearchService>();
             builder.Services.AddScoped<IFoundryService, FoundryService>();
             builder.Services.AddScoped<ITrancheService, TrancheService>();
@@ -312,8 +313,16 @@ namespace FoundrySharePointKnowledge.API
                 client.DefaultRequestHeaders.Add(FSPKConstants.Security.Authorization, $"{JwtBearerDefaults.AuthenticationScheme} {foundrySettings.AccountKey}");
             });
 
+            //document intelligence throttles a bulk conversion long before it fails one, so it is given room
+            //to back off rather than surfacing a transient rejection as a failed file
+            DocumentIntelligenceClientOptions documentIntelligenceOptions = new DocumentIntelligenceClientOptions();
+            documentIntelligenceOptions.Retry.Mode = RetryMode.Exponential;
+            documentIntelligenceOptions.Retry.Delay = FSPKConstants.Foundry.DocumentIntelligence.RetryDelay;
+            documentIntelligenceOptions.Retry.MaxDelay = FSPKConstants.Foundry.DocumentIntelligence.MaxRetryDelay;
+            documentIntelligenceOptions.Retry.MaxRetries = FSPKConstants.Foundry.DocumentIntelligence.MaxRetries;
+
             //return
-            builder.Services.AddSingleton(new DocumentIntelligenceClient(foundrySettings.DocumentIntelligenceEndpoint, new AzureKeyCredential(foundrySettings.AccountKey)));
+            builder.Services.AddSingleton(new DocumentIntelligenceClient(foundrySettings.DocumentIntelligenceEndpoint, new AzureKeyCredential(foundrySettings.AccountKey), documentIntelligenceOptions));
             return foundrySettings;
         }
 
