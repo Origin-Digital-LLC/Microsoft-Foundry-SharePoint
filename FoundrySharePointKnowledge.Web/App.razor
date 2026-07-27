@@ -5,7 +5,7 @@
                 <NotAuthorized>
                     @if (authenticationContext.User.Identity?.IsAuthenticated != true)
                     {
-                       <RedirectToLogin />
+                       <LoginPrompt />
                     }
                     else
                     {

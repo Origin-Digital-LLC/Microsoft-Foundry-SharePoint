@@ -418,6 +418,8 @@ namespace FoundrySharePointKnowledge.Common
             public static class VectorStores
             {
                 public const int MaxIndexingChecks = 200;
+                public const int MaxIndexBatchSize = 500;
+                public const string BatchIdDelimiter = ",";
                 public const int BatchPollingWaitMilliseconds = 2 * 1000;
                 public const string MachineTelemetry = "machine-telemetry";
             }
@@ -513,6 +515,8 @@ namespace FoundrySharePointKnowledge.Common
                 public const string EnsureVectorStore = "ensure-vector-store";
                 public const string IndexFilesProgress = "index-files-progress";
                 public const string UpdateTrancheFiles = "update-tranche-files";
+                public const string IndexProgress = "index-progress/{trancheId}";
+                public const string UploadProgress = "upload-progress/{trancheId}";
                 public const string DeleteExisting = "/{deleteExisting:bool=true}";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
                 public const string MigrateStorageAccount = "migrate-storage-account";
@@ -536,6 +540,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string NotFound = "/not-found";
                 public const string Expertise = "/expertise";
                 public const string Login = "authentication/login";
+                public const string Logout = "authentication/logout";
                 public const string Authentication = "authentication/{action}";
             }
         }
@@ -565,23 +570,33 @@ namespace FoundrySharePointKnowledge.Common
             public const string Controller = "foundry";
             public const string ApplicationRoot = "#app";
             public const string HeadOutlet = "head::after";
+            public const string ProgressLabelFormat = "{0:0}%";
 
             public static class Synchronization
             {
                 public const double FailedProgress = -1;
                 public const double CompletedProgress = 1;
                 public const double CancelledProgress = -2;
+                public const double UploadStarted = 0.0001;
                 public const double IndexingStarted = 0.0001;
                 public const string IndexFiles = "Index Files";
                 public const string ResetFiles = "Reset Files";
+                public const int PollingWaitMilliseconds = 5000;
+                public const double MaxInFlightProgress = 0.9999;
                 public const string VectorStore = "Vector Store";
-                public const string UploadFiles = "Upload Files";
+                public const string ProcessFiles = "Process Files";
+                public const string UploadFailed = "Upload Failed.";
                 public const string IndexFailed = "Indexing Failed.";
+                public const string BuildingIndex = "Building index...";
                 public const string IndexCancelled = "Indexing Cancelled.";
                 public const string IndexCompleted = "Indexing Completed.";
-                public const string VectorStoreFormat = "Vector Store: {0}";
-                public const string UploadedFilesFormat = "Files uploaded to AI: {0}";
-                public const string MissingFileIds = "Upload the tranche's files before indexing them.";
+                public const string ProcessingStarting = "Opening Vector Store...";
+                public const string IndexProgressFormat = "Indexed {0} of {1} files.";
+                public const string ProcessProgressFormat = "Processed {0} of {1} files.";
+                public const string UploadedFilesFormat = "Successfully processed {0} files.";
+                public const string VectorStoreFormat = "Vector Store {0} successfully created.";
+                public const string UploadProgressFormat = "Successfully uploaded {0} of {1} files.";
+                public const string MissingBatchId = "This tranche has no indexing operation to track.";
             }
         }
 

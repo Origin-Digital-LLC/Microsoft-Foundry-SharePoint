@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Reflection;
 using System.ClientModel;
 using System.Diagnostics;
@@ -1108,9 +1109,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         //}
 
         /// <summary>
-        /// Indexes files in a vector store.
+        /// Uploads a tranche's blobs into a Foundry project, reporting how many of how many files have been
+        /// dealt with so a caller running this in the background can record its progress; the total is only
+        /// known once the container has been listed, so it is reported alongside every count.
         /// </summary>
-        public async Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest)
+        public async Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest, Func<int, int, Task> reportProgressAsync)
         {
             //initialization
             ArgumentNullException.ThrowIfNull(uploadFilesRequest);
@@ -1121,6 +1124,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             {
                 //get container
                 int totalSize = 0;
+                int uploadedCount = 0;
                 List<string> failedFiles = new List<string>();
                 Dictionary<string, byte[]> files = new Dictionary<string, byte[]>();
                 BlobContainerClient containerClient = this._blobClient.GetBlobContainerClient(uploadFilesRequest.ContainerName);
@@ -1201,7 +1205,13 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     ClientResult<OpenAIFile> uploadedFile = await fileClient.UploadFileAsync(new MemoryStream(file.Value), fileName, FileUploadPurpose.Assistants);
                     if (uploadedFile.EnsureSuccess($"Failed to upload {file.Key}", this._logger, false))
                         if (fileIds.TryAdd(fileName, uploadedFile.Value.Id))
-                            totalSize += file.Value.Length;
+                            Interlocked.Add(ref totalSize, file.Value.Length);
+
+                    //report how many files have been dealt with, counting a failed upload as dealt with so a
+                    //partly failed set of files still reaches the end of its progress
+                    int completed = Interlocked.Increment(ref uploadedCount);
+                    if (reportProgressAsync != null)
+                        await reportProgressAsync(completed, files.Count);
                 });
 
                 //return
@@ -1220,107 +1230,71 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         }
 
         /// <summary>
-        /// Waits for a batch of files in a Foundry vector store to be indexed.
+        /// Starts one batch indexing the supplied files into a vector store and returns its identifier; the
+        /// caller is responsible for keeping each batch within the store's per-batch file cap.
         /// </summary>
-        public async Task<IndexFilesResponse> IndexVectorStoreFilesAsync(IndexFilesRequest indexFilesRequest)
+        public async Task<string> AddIndexBatchAsync(string vectorStoreId, string[] fileIds)
         {
             //initialization
-            VectorStoreFileBatch batch = null;
-            ArgumentNullException.ThrowIfNull(indexFilesRequest);
-            ArgumentNullException.ThrowIfNull(indexFilesRequest.FileIds);
-            ArgumentNullException.ThrowIfNullOrWhiteSpace(indexFilesRequest.VectorStoreId);
-            string message = $"Foundry vector store {indexFilesRequest.VectorStoreId} indexing of {indexFilesRequest.FileIds.Pluralize("file")}";
+            ArgumentNullException.ThrowIfNull(fileIds);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
 
-            try
-            {
-                //get foundry clients
-                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
-                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
-                VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+            //get foundry clients
+            AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+            ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+            VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
 
-                //start batched indexing operation
-                batch = await vectorStoreClient.AddFileBatchToVectorStoreAsync(indexFilesRequest.VectorStoreId, indexFilesRequest.FileIds.Values);
-                if (!indexFilesRequest.WaitForCompletion)
-                    return new IndexFilesResponse(batch.BatchId);
+            //start the batch
+            VectorStoreFileBatch batch = await vectorStoreClient.AddFileBatchToVectorStoreAsync(vectorStoreId, fileIds);
 
-                //poll batch
-                int checks = 0;
-                Stopwatch timer = Stopwatch.StartNew();
-                while (batch.Status == VectorStoreFileBatchStatus.InProgress)
-                {
-                    //simple timeout check
-                    checks++;
-                    if (checks >= FSPKConstants.Foundry.VectorStores.MaxIndexingChecks)
-                        throw new Exception($"{message} timed out after {(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds * checks).Pluralize("millisecond")}.");
-
-                    //poll until batch is completed
-                    await Task.Delay(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds);
-                    this._logger.LogInformation($"Batch {batch.BatchId} is still indexing files after {checks.Pluralize("check")}.");
-
-                    //refresh batch
-                    batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(batch.VectorStoreId, batch.BatchId);
-                }
-
-                //check result
-                if (batch.Status != VectorStoreFileBatchStatus.Completed)
-                {
-                    //error
-                    string error = $"Batch {batch.BatchId} failed with status: {batch.Status}.";
-
-                    //return
-                    this._logger.LogError(error);
-                    return new IndexFilesResponse(batch.BatchId, error);
-                }
-                else
-                {
-                    //return
-                    this._logger.LogInformation($"Successfully completed {message} after {timer.Elapsed.TotalMinutes} minutes.");
-                    return new IndexFilesResponse(batch.BatchId, checks, timer.Elapsed.TotalMinutes);
-                }
-            }
-            catch (Exception ex)
-            {
-                //error
-                string error = $"Failed to complete {message}.";
-
-                //return
-                this._logger.LogError(ex, error);
-                return new IndexFilesResponse(batch?.BatchId ?? "N/A", $"{error} {ex.Message}");
-            }
+            //return
+            this._logger.LogInformation($"Started batch {batch.BatchId} indexing {fileIds.Pluralize("file")} into vector store {vectorStoreId}.");
+            return batch.BatchId;
         }
 
         /// <summary>
-        /// Gets the progress of an ongoing Foundry vector store indexing operation.
+        /// Gets the combined progress of an ongoing Foundry vector store indexing operation across every batch
+        /// it was split into.
         /// </summary>
         public async Task<IndexProgressResponse> GetIndexOperationProgressAsync(IndexProgressRequest indexProgressRequest)
         {
             //initialization
-            VectorStoreFileBatch batch = null;
             ArgumentNullException.ThrowIfNull(indexProgressRequest);
-            ArgumentNullException.ThrowIfNullOrWhiteSpace(indexProgressRequest.BatchId);
+            ArgumentNullException.ThrowIfNull(indexProgressRequest.BatchIds);
             ArgumentNullException.ThrowIfNullOrWhiteSpace(indexProgressRequest.VectorStoreId);
-            string message = $"Foundry vector store {indexProgressRequest.VectorStoreId} indexing of batch {indexProgressRequest.BatchId}";
+            string message = $"Foundry vector store {indexProgressRequest.VectorStoreId} indexing of {indexProgressRequest.BatchIds.Pluralize("batch", "es")}";
 
             try
             {
+                //an operation with no batches has nothing to report on
+                if (indexProgressRequest.BatchIds.Length == 0)
+                    throw new Exception($"No batches were supplied for vector store {indexProgressRequest.VectorStoreId}.");
+
                 //get foundry clients
                 AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
                 ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
                 VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
 
-                //get batch
-                batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(indexProgressRequest.VectorStoreId, indexProgressRequest.BatchId);
+                //read every batch, since the caller is owed the operation's combined progress
+                List<VectorStoreFileBatch> batches = new List<VectorStoreFileBatch>();
+                foreach (string batchId in indexProgressRequest.BatchIds)
+                {
+                    //collect each batch
+                    VectorStoreFileBatch batch = await vectorStoreClient.GetVectorStoreFileBatchAsync(indexProgressRequest.VectorStoreId, batchId);
+                    if (batch == null)
+                        throw new Exception($"Batch {batchId} not found in vector store {indexProgressRequest.VectorStoreId}.");
+
+                    //collect
+                    batches.Add(batch);
+                }
 
                 //return
-                if (batch == null)
-                    throw new Exception($"Batch {indexProgressRequest.BatchId} not found in vector store {indexProgressRequest.VectorStoreId}.");
-                else
-                    return new IndexProgressResponse(batch);
+                return new IndexProgressResponse(batches.ToArray());
             }
             catch (Exception ex)
             {
                 //error
-                string error = $"Failed to get status of{message}.";
+                string error = $"Failed to get the status of {message}.";
                 this._logger.LogError(ex, error);
 
                 //return

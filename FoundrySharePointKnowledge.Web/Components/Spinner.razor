@@ -1,0 +1,20 @@
+@inherits SpinnerBase
+
+<div class="spinner" aria-busy="@this.GetAriaBusy()">
+    @*inert keeps focus, tabbing, and keyboard activation out of the content while the overlay covers it*@
+    <div class="spinner-content" inert="@this.IsSpinning">
+        @this.ChildContent
+    </div>
+
+    @*the indicator stays in the dom and is only hidden so showing it costs no render pass and no gif refetch*@
+    <div class="spinner-overlay @(this.IsSpinning ? "spinner-overlay-visible" : string.Empty)">
+        @if (this.Indicator != null)
+        {
+            @this.Indicator
+        }
+        else
+        {
+            <div class="spinner-default-indicator"></div>
+        }
+    </div>
+</div>

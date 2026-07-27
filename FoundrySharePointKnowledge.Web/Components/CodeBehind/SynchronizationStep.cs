@@ -13,7 +13,6 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 
         public TrancheTableEntity Tranche { get; }
         #endregion
-
         #region Initialization
         public SynchronizationStep(TrancheStatus status, TrancheTableEntity tranche)
         {
@@ -22,7 +21,6 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
             this.Tranche = tranche;
         }
         #endregion
-
         #region Public Methods
         /// <summary>
         /// Returns a textual representation of an instance of this object.

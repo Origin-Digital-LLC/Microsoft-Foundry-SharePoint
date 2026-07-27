@@ -1,0 +1,31 @@
+@inherits IndexingStatusBase
+
+@if (this.Tranche != null)
+{
+    <div class="indexing-status">
+        @if (this.Tranche.IndexedFileProgress == FSPKConstants.Blazor.Synchronization.FailedProgress)
+        {
+            <p class="sync-manager-error">@FSPKConstants.Blazor.Synchronization.IndexFailed</p>
+        }
+        else if (this.Tranche.IndexedFileProgress == FSPKConstants.Blazor.Synchronization.CancelledProgress)
+        {
+            <p class="sync-manager-error">@FSPKConstants.Blazor.Synchronization.IndexCancelled</p>
+        }
+        else if (this.Tranche.IndexedFileProgress >= FSPKConstants.Blazor.Synchronization.CompletedProgress)
+        {
+            <p class="sync-manager-success">@FSPKConstants.Blazor.Synchronization.IndexCompleted</p>
+        }
+        else if (this.IsIndexing)
+        {
+            <ProgressBar Progress="this.Tranche.IndexedFileProgress" Caption="@this.ProgressCaption" DefaultCaption="@FSPKConstants.Blazor.Synchronization.BuildingIndex" />
+        }
+        else
+        {
+            <button class="tranche-action-button" disabled="@this.IsBusy" @onclick="this.RequestIndexingAsync">Index</button>
+        }
+        @if (!string.IsNullOrWhiteSpace(this.Message))
+        {
+            <p class="sync-manager-error">@this.Message</p>
+        }
+    </div>
+}

@@ -22,10 +22,13 @@ namespace FoundrySharePointKnowledge.Domain.Tranches
         public string VectorStoreId { get; set; }
         public double BlobTotalSize { get; set; }
         public string ContainerName { get; set; }
+        public string IndexBatchIds { get; set; }
         public int UploadedFileCount { get; set; }
+        public int UploadingFileCount { get; set; }
         public double UploadedFileSize { get; set; }
         public DateTimeOffset? Timestamp { get; set; }
         public double IndexedFileProgress { get; set; }
+        public double UploadedFileProgress { get; set; }
         public string Name { get; set; } = string.Format(FSPKConstants.AzureStorage.Tables.DefaultTrancheNameFormat, DateTime.Now);
 
         /// <summary>
@@ -43,6 +46,29 @@ namespace FoundrySharePointKnowledge.Domain.Tranches
         {
             get { return (TrancheStatus)this.StatusValue; }
             set { this.StatusValue = (int)value; }
+        }
+
+        /// <summary>
+        /// The Foundry batches indexing the tranche's files, since a vector store caps how many files a single
+        /// batch may carry; this is ignored during serialization because Azure Storage Tables cannot persist
+        /// arrays, so the delimited list is stored in IndexBatchIds instead.
+        /// </summary>
+        [IgnoreDataMember()]
+        public string[] IndexBatches
+        {
+            get
+            {
+                //return
+                if (string.IsNullOrWhiteSpace(this.IndexBatchIds))
+                    return Array.Empty<string>();
+                else
+                    return this.IndexBatchIds.Split(FSPKConstants.Foundry.VectorStores.BatchIdDelimiter, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            }
+            set
+            {
+                //return
+                this.IndexBatchIds = value == null ? null : string.Join(FSPKConstants.Foundry.VectorStores.BatchIdDelimiter, value);
+            }
         }
         #endregion
         #region Public Methods

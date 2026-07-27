@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 
 using FoundrySharePointKnowledge.Common;
@@ -6,16 +6,19 @@ using FoundrySharePointKnowledge.Common;
 namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 {
     /// <summary>
-    /// This enforces authentication.
+    /// This prompts an anonymous user to sign in rather than authenticating silently on the first render.
     /// </summary>
-    public class RedirectToLoginBase : ComponentBase
+    public class LoginPromptBase : ComponentBase
     {
-        #region Members
+        #region Properties
         [Inject()]
         protected NavigationManager _navigationManager { get; set; }
-        #endregion      
-        #region Events
-        protected override void OnInitialized()
+        #endregion
+        #region Protected Methods
+        /// <summary>
+        /// Sends the user through the interactive sign in flow, returning them to the page they requested.
+        /// </summary>
+        protected void Login()
         {
             //return
             this._navigationManager.NavigateToLogin(FSPKConstants.Routing.Blazor.Login);

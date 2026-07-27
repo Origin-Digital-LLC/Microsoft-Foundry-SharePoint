@@ -46,23 +46,25 @@ else
                             <EditTranche Mode="EditTrancheMode.Edit" Tranche="tranche" Updated="this.StateHasChanged" />
                         </td>
                         <td>
-                            <Modal Width="0.3" AutoClose="false" Affirmed="() => this.DeleteTrancheAsync(tranche)">
-                                <ClosedContent Context="openCallback">
-                                    <button class="tranche-delete-button" @onclick="openCallback">Delete</button>
-                                </ClosedContent>
-                                <HeaderContent>
-                                    <h2>Are you sure?</h2>
-                                </HeaderContent>
-                                <MainContent>
-                                    <p>Are you sure you want to delete "@tranche.Name"?</p>
-                                </MainContent>
-                                <FooterContent Context="callbacks">
-                                    <div class="modal-footer-buttons">
-                                        <button class="modal-button modal-button-ok" @onclick="callbacks.OnOk">Yes</button>
-                                        <button class="modal-button modal-button-cancel" @onclick="callbacks.OnCancel">No</button>
-                                    </div>
-                                </FooterContent>
-                            </Modal>
+                            <Spinner @ref="this.DeleteSpinners[tranche.TrancheId]">
+                                <Modal Width="0.3" AutoClose="false" Affirmed="() => this.DeleteTrancheAsync(tranche)">
+                                    <ClosedContent Context="openCallback">
+                                        <button class="tranche-delete-button" @onclick="openCallback">Delete</button>
+                                    </ClosedContent>
+                                    <HeaderContent>
+                                        <h2>Are you sure?</h2>
+                                    </HeaderContent>
+                                    <MainContent>
+                                        <p>Are you sure you want to delete "@tranche.Name"?</p>
+                                    </MainContent>
+                                    <FooterContent Context="callbacks">
+                                        <div class="modal-footer-buttons">
+                                            <button class="modal-button modal-button-ok" @onclick="callbacks.OnOk">Yes</button>
+                                            <button class="modal-button modal-button-cancel" @onclick="callbacks.OnCancel">No</button>
+                                        </div>
+                                    </FooterContent>
+                                </Modal>
+                            </Spinner>
                         </td>
                     </tr>
                 }

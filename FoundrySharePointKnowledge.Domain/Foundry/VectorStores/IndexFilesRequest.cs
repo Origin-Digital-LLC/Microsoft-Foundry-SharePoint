@@ -1,27 +1,29 @@
-﻿using System.Collections.Generic;
+using System;
 
 namespace FoundrySharePointKnowledge.Domain.Foundry.VectorStores
 {
     /// <summary>
-    /// Starts an operation to index Foundry project files into a vector store.
+    /// Starts an operation to index a tranche's uploaded files into its vector store; the files themselves are
+    /// read from the tranche, since the operation runs in the background long after this is handed over.
     /// </summary>
     public record IndexFilesRequest
     {
         #region Initialization
-        public IndexFilesRequest(string vectorStoreId, Dictionary<string, string> fileIds, bool waitForCompletion)
+        public IndexFilesRequest(Guid trancheId, string vectorStoreId)
         {
             //initialization
-            this.FileIds = fileIds;
+            this.TrancheId = trancheId;
             this.VectorStoreId = vectorStoreId;
-            this.WaitForCompletion = waitForCompletion;
         }
         #endregion
         #region Properties
+        public Guid TrancheId { get; init; }
         public string VectorStoreId { get; init; }
-        public bool WaitForCompletion { get; init; }
-        public Dictionary<string, string> FileIds { get; init; }
         #endregion
         #region Public Methods
+        /// <summary>
+        /// Returns a textual representation of an instance of this object.
+        /// </summary>
         public override string ToString()
         {
             //return

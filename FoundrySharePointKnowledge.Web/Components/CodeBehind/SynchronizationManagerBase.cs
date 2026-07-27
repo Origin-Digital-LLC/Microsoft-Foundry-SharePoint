@@ -22,9 +22,9 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         private bool _isBusy;
         private string _message;
         private Guid _paneTrancheId;
+        private Spinner _activeSpinner;
         private UploadFilesRequest _uploadFilesRequest;
         private Dictionary<string, object> _panes = new Dictionary<string, object>();
-        private Dictionary<string, string> _uploadedFileIds = new Dictionary<string, string>();
         #endregion
         #region Properties
         [Inject()]
@@ -38,6 +38,17 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected string Message => this._message;
 
         protected Dictionary<string, object> Panes => this._panes;
+
+        /// <summary>
+        /// The spinner covering the vector store creation button while its step runs.
+        /// </summary>
+        protected Spinner VectorStoreSpinner { get; set; }
+
+        /// <summary>
+        /// The spinner covering the file reset button while its step runs; this wraps the confirmation modal
+        /// rather than living inside it, since a modal discards its trigger content while it is open.
+        /// </summary>
+        protected Spinner ResetFilesSpinner { get; set; }
 
         /// <summary>
         /// The optional blob name prefix limiting which of the tranche's files are uploaded; the bound request is
@@ -69,14 +80,13 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
             {
                 //assemble object
                 { FSPKConstants.Blazor.Synchronization.VectorStore, new SynchronizationStep(TrancheStatus.Pending, this.Tranche) },
-                { FSPKConstants.Blazor.Synchronization.UploadFiles, new SynchronizationStep(TrancheStatus.VectorStoreCreated, this.Tranche) },
+                { FSPKConstants.Blazor.Synchronization.ProcessFiles, new SynchronizationStep(TrancheStatus.VectorStoreCreated, this.Tranche) },
                 { FSPKConstants.Blazor.Synchronization.IndexFiles, new SynchronizationStep(TrancheStatus.FilesUploaded, this.Tranche) },
                 { FSPKConstants.Blazor.Synchronization.ResetFiles, new SynchronizationStep(TrancheStatus.FilesIndexed, this.Tranche) }
             };
 
             //reset the transient state belonging to the previous tranche
             this._message = null;
-            this._uploadedFileIds = new Dictionary<string, string>();
             this._uploadFilesRequest = new UploadFilesRequest(this.Tranche.TrancheId, this.Tranche.ContainerName, null, this.Tranche.VectorStoreId);
         }
 
@@ -86,7 +96,7 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected async Task CreateVectorStoreAsync()
         {
             //call the api, naming the vector store after the tranche's row key
-            this.BeginWork();
+            await this.BeginWorkAsync(this.VectorStoreSpinner);
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
             string route = $"{FSPKConstants.Routing.API.Foundry}/{FSPKConstants.Routing.API.EnsureVectorStore}?name={Uri.EscapeDataString(this.Tranche.RowKey)}";
             HttpResponseMessage response = await client.PutAsync(route, null);
@@ -111,13 +121,13 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         }
 
         /// <summary>
-        /// Uploads the tranche's blobs into the Foundry project, then records the resulting file identifiers
-        /// against both the tranche and each of its tracked files.
+        /// Starts uploading the tranche's blobs into the Foundry project; the upload runs on the API in the
+        /// background, so this only marks it as started and leaves the rest to the polled progress.
         /// </summary>
         protected async Task UploadFilesAsync()
         {
             //call the api
-            this.BeginWork();
+            await this.BeginWorkAsync(null);
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
             HttpResponseMessage response = await client.PostAsJsonAsync($"{FSPKConstants.Routing.API.Foundry}/{FSPKConstants.Routing.API.UploadFiles}", this._uploadFilesRequest);
 
@@ -129,72 +139,38 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
                 return;
             }
 
-            //an upload that failed outright reports itself through the response's error
-            UploadFilesResponse uploadFilesResponse = await response.Content.ReadFromJsonAsync<UploadFilesResponse>();
-            if (uploadFilesResponse == null || !string.IsNullOrWhiteSpace(uploadFilesResponse.Error))
-            {
-                //error
-                await this.EndWorkAsync(uploadFilesResponse?.Error);
-                return;
-            }
-
-            //apply the upload to the tranche in memory, keeping the file identifiers for the indexing step
-            this._uploadedFileIds = uploadFilesResponse.FileIds ?? new Dictionary<string, string>();
-            this.Tranche.Status = TrancheStatus.FilesUploaded;
-            this.Tranche.UploadedFileSize = uploadFilesResponse.TotalSize;
-            this.Tranche.UploadedFileCount = this._uploadedFileIds.Count;
-
-            //persist the tranche, then stamp each tracked file with its uploaded identifier
-            await this.SaveTrancheAsync();
-            UpdateFilesRequest updateFilesRequest = new UpdateFilesRequest(this.Tranche.TrancheId, this._uploadedFileIds);
-            await client.PostAsJsonAsync($"{FSPKConstants.Routing.API.Tranche}/{FSPKConstants.Routing.API.UpdateTrancheFiles}", updateFilesRequest);
+            //mark the upload as started in memory; the API has already recorded the same against the tranche,
+            //so there is nothing to persist here and the status advances only once the upload finishes
+            this.Tranche.UploadedFileProgress = FSPKConstants.Blazor.Synchronization.UploadStarted;
 
             //return
             await this.EndWorkAsync(null);
         }
 
         /// <summary>
-        /// Indexes the tranche's uploaded files into its vector store.
+        /// Starts indexing the tranche's uploaded files into its vector store; the indexing runs on the API in
+        /// the background, one batch at a time, so this only marks it as started and leaves the rest to the
+        /// polled progress.
         /// </summary>
         protected async Task IndexFilesAsync()
         {
-            //the identifiers come from this session's upload, since they are not loaded back from the API
-            if (this._uploadedFileIds.Count == 0)
-            {
-                //error
-                this._message = FSPKConstants.Blazor.Synchronization.MissingFileIds;
-                await this.InvokeAsync(StateHasChanged);
-                return;
-            }
-
-            //call the api
-            this.BeginWork();
+            //call the api, which reads the files to index back from the tranche itself
+            await this.BeginWorkAsync(null);
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
-            IndexFilesRequest indexFilesRequest = new IndexFilesRequest(this.Tranche.VectorStoreId, this._uploadedFileIds, false);
+            IndexFilesRequest indexFilesRequest = new IndexFilesRequest(this.Tranche.TrancheId, this.Tranche.VectorStoreId);
             HttpResponseMessage response = await client.PostAsJsonAsync($"{FSPKConstants.Routing.API.Foundry}/{FSPKConstants.Routing.API.IndexFiles}", indexFilesRequest);
 
             //check the response
             if (!response.IsSuccessStatusCode)
             {
                 //error
-                this.Tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress;
                 await this.EndWorkAsync(await response.Content.ReadAsStringAsync());
                 return;
             }
 
-            //a failed indexing run reports itself through the response's error
-            IndexFilesResponse indexFilesResponse = await response.Content.ReadFromJsonAsync<IndexFilesResponse>();
-            if (indexFilesResponse?.IsError ?? true)
-            {
-                //error
-                this.Tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress;
-                await this.EndWorkAsync(indexFilesResponse?.Error);
-                return;
-            }
-
-            //advance the tranche in memory, since indexing progress is not part of the tranche's editable metadata
-            this.Tranche.Status = TrancheStatus.FilesIndexing;
-            this.Tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.CompletedProgress;
+            //mark the indexing as started in memory; the API has already recorded the same against the tranche,
+            //so there is nothing to persist here and the status advances only once the indexing finishes
+            this.Tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.IndexingStarted;
 
             //return
             await this.EndWorkAsync(null);
@@ -206,7 +182,7 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected async Task ResetFilesAsync()
         {
             //call the api
-            this.BeginWork();
+            await this.BeginWorkAsync(this.ResetFilesSpinner);
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
             ResetFilesRequest resetFilesRequest = new ResetFilesRequest(this.Tranche.VectorStoreId);
             HttpResponseMessage response = await client.PostAsJsonAsync($"{FSPKConstants.Routing.API.Foundry}/{FSPKConstants.Routing.API.ResetFiles}", resetFilesRequest);
@@ -218,13 +194,20 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
 
         #region Private Methods
         /// <summary>
-        /// Marks a synchronization step as running and re-renders so its controls disable themselves.
+        /// Marks a synchronization step as running so its controls disable themselves, and spins the supplied
+        /// spinner over the control that started it; the steps whose progress is already polled and reported
+        /// through a progress bar supply no spinner.
         /// </summary>
-        private void BeginWork()
+        private async Task BeginWorkAsync(Spinner spinner)
         {
-            //return
+            //mark the step as running
             this._isBusy = true;
             this._message = null;
+            this._activeSpinner = spinner;
+
+            //return
+            if (spinner != null)
+                await spinner.StartSpinningAsync();
         }
 
         /// <summary>
@@ -233,6 +216,12 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         /// </summary>
         private async Task EndWorkAsync(string error)
         {
+            //stop spinning first, since an advanced status can take the spun control off the screen
+            if (this._activeSpinner != null)
+                await this._activeSpinner.StopSpinningAsync();
+
+            this._activeSpinner = null;
+
             //notify
             this._isBusy = false;
             this._message = error;
@@ -249,12 +238,7 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         {
             //call the api
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
-            EditTrancheRequest request = new EditTrancheRequest(this.Tranche.TrancheId,
-                                                               this.Tranche.Name,
-                                                               this.Tranche.VectorStoreId,
-                                                               this.Tranche.Status,
-                                                               this.Tranche.UploadedFileCount,
-                                                               this.Tranche.UploadedFileSize);
+            EditTrancheRequest request = new EditTrancheRequest(this.Tranche);
 
             //return
             await client.PutAsJsonAsync($"{FSPKConstants.Routing.API.Tranche}/{FSPKConstants.Routing.API.EditTranche}", request);

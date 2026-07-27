@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 using Azure.Core;
 
@@ -15,8 +16,18 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
         Task<string> EnsureVectorStoreAsync(string name);
         Task<bool> DeleteVectorStoreAsync(string vectorStoreId);
         Task<ResetFilesResponse> ResetFilesAsync(ResetFilesRequest resetFilesRequest);
-        Task<IndexFilesResponse> IndexVectorStoreFilesAsync(IndexFilesRequest indexFilesRequest);
-        Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest);
+        /// <summary>
+        /// Starts one batch indexing the supplied files into a vector store and returns its identifier; the
+        /// caller is responsible for keeping each batch within the store's per-batch file cap.
+        /// </summary>
+        Task<string> AddIndexBatchAsync(string vectorStoreId, string[] fileIds);
+
+        /// <summary>
+        /// Uploads a tranche's blobs into a Foundry project, reporting how many of how many files have been
+        /// dealt with so a caller running this in the background can record its progress; the total is only
+        /// known once the container has been listed, so it is reported alongside every count.
+        /// </summary>
+        Task<UploadFilesResponse> UploadVectorStoreFilesAsync(UploadFilesRequest uploadFilesRequest, Func<int, int, Task> reportProgressAsync);
         Task<IndexProgressResponse> GetIndexOperationProgressAsync(IndexProgressRequest indexProgressRequest);
         Task<AgentResponse<string>> ConverseWithAgentAsync(ConversationPrompt prompt, FoundryCredential foundryCredential);
         Task<AgentResponse<EngineerBio[]>> ExecuteExpertiseFinderWorkflowAsync(string prompt, TokenCredential tokenCredential);

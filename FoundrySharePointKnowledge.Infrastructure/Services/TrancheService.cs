@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -15,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Tranches;
 using FoundrySharePointKnowledge.Domain.Contracts;
+using FoundrySharePointKnowledge.Domain.Foundry.VectorStores;
 
 namespace FoundrySharePointKnowledge.Infrastructure.Services
 {
@@ -169,10 +171,15 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 //apply the edit
                 tranche.Name = request.Name;
                 tranche.Status = request.Status;
+                tranche.IndexBatchIds = request.IndexBatchIds;
                 tranche.VectorStoreId = request.VectorStoreId;
+                tranche.BlobFileCount = request.BlobFileCount;
+                tranche.BlobTotalSize = request.BlobTotalSize;
                 tranche.UploadedFileSize = request.UploadedFileSize;
                 tranche.UploadedFileCount = request.UploadedFileCount;
+                tranche.UploadingFileCount = request.UploadingFileCount;
                 tranche.IndexedFileProgress = request.IndexedFileProgress;
+                tranche.UploadedFileProgress = request.UploadedFileProgress;
 
                 //save
                 await tranches.UpsertEntityAsync(tranche);
@@ -180,6 +187,186 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
             //return
             this._logger.LogInformation($"Edited tranche {request.TrancheId}.");
+        }
+
+        /// <summary>
+        /// Uploads a tranche's blobs into the Foundry project, recording its progress against the tranche as
+        /// it goes; this is meant to be run in the background, so it reports failure through the tranche's
+        /// progress rather than by throwing.
+        /// </summary>
+        public async Task UploadTrancheFilesAsync(UploadFilesRequest request)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(request);
+            int lastReportedPercentage = -1;
+            this._logger.LogInformation($"Starting the background upload of tranche {request.TrancheId}.");
+
+            //this records whole percentage points only, since a per-file write would hammer the table for
+            //progress the polling UI cannot resolve anyway
+            async Task reportProgressAsync(int completedFiles, int totalFiles)
+            {
+                //guard
+                if (totalFiles <= 0)
+                    return;
+
+                //files upload in parallel, so readings arrive out of order; claim this percentage point only
+                //if it beats every point already recorded, otherwise the bar would jump backwards
+                double progress = (double)completedFiles / totalFiles;
+                int percentage = (int)(progress * 100);
+                int previous = lastReportedPercentage;
+
+                while (percentage > previous)
+                {
+                    //take the point unless another file claimed a higher one first
+                    int claimed = Interlocked.CompareExchange(ref lastReportedPercentage, percentage, previous);
+                    if (claimed == previous)
+                    {
+                        //record the total alongside the progress, since it is the only thing telling a caller
+                        //how many files this upload is working through once a prefix has narrowed them down
+                        await this.UpdateTrancheAsync(request.TrancheId, tranche =>
+                        {
+                            //never record an in-flight upload as completed, since the tranche only advances
+                            //once every file identifier has been persisted for it
+                            tranche.UploadingFileCount = totalFiles;
+                            tranche.UploadedFileProgress = Math.Min(progress, FSPKConstants.Blazor.Synchronization.MaxInFlightProgress);
+                        });
+
+                        return;
+                    }
+
+                    //another file moved the needle, so weigh this reading against where it landed
+                    previous = claimed;
+                }
+            }
+
+            try
+            {
+                //upload the tranche's blobs into the foundry project
+                UploadFilesResponse response = await this._foundryService.UploadVectorStoreFilesAsync(request, reportProgressAsync);
+                if (response == null || !string.IsNullOrWhiteSpace(response.Error))
+                {
+                    //error
+                    this._logger.LogError($"Failed the background upload of tranche {request.TrancheId}: {response?.Error}.");
+                    await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.UploadedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress);
+                    return;
+                }
+
+                //stamp every uploaded file identifier onto the tranche's tracked files, since indexing reads
+                //them back from there rather than from this operation's result
+                Dictionary<string, string> fileIds = response.FileIds ?? new Dictionary<string, string>();
+                await this.UpdateFilesAsync(new UpdateFilesRequest(request.TrancheId, fileIds));
+
+                //advance the tranche only once its files can actually be indexed
+                await this.UpdateTrancheAsync(request.TrancheId, tranche =>
+                {
+                    //apply the upload
+                    tranche.Status = TrancheStatus.FilesUploaded;
+                    tranche.UploadedFileCount = fileIds.Count;
+                    tranche.UploadedFileSize = response.TotalSize;
+                    tranche.UploadedFileProgress = FSPKConstants.Blazor.Synchronization.CompletedProgress;
+                });
+
+                //return
+                this._logger.LogInformation($"Finished the background upload of {fileIds.Pluralize("file")} for tranche {request.TrancheId}.");
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed the background upload of tranche {request.TrancheId}.");
+                await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.UploadedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress);
+            }
+        }
+
+        /// <summary>
+        /// Indexes a tranche's uploaded files into its vector store, one batch at a time: each batch is started
+        /// only once the batch before it has settled, so a tranche of any size never has more than a single
+        /// batch in flight. This is meant to be run in the background, so it reports failure through the
+        /// tranche's progress rather than by throwing.
+        /// </summary>
+        public async Task IndexTrancheFilesAsync(IndexFilesRequest request)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNull(request);
+            this._logger.LogInformation($"Starting the background indexing of tranche {request.TrancheId}.");
+
+            try
+            {
+                //the identifiers were recorded when the tranche's files were uploaded
+                Dictionary<string, string> fileIds = await this.LoadFileIdsAsync(request.TrancheId);
+                if (fileIds.Count == 0)
+                {
+                    //error
+                    this._logger.LogError($"Tranche {request.TrancheId} has no uploaded files to index.");
+                    await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress);
+                    return;
+                }
+
+                //split the files across as many batches as the vector store's per-batch cap requires
+                int settledFiles = 0;
+                List<string> batchIds = new List<string>();
+                string[][] chunks = fileIds.Values.Chunk(FSPKConstants.Foundry.VectorStores.MaxIndexBatchSize).ToArray();
+                this._logger.LogInformation($"Indexing {fileIds.Pluralize("file")} for tranche {request.TrancheId} across {chunks.Pluralize("batch", "es")}.");
+
+                //work through the batches in series
+                foreach (string[] chunk in chunks)
+                {
+                    //start this batch, recording it against the tranche so what ran stays auditable
+                    string batchId = await this._foundryService.AddIndexBatchAsync(request.VectorStoreId, chunk);
+                    batchIds.Add(batchId);
+                    await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.IndexBatches = batchIds.ToArray());
+
+                    //poll this batch alone until it settles
+                    IndexProgressRequest progressRequest = new IndexProgressRequest(request.VectorStoreId, new string[] { batchId });
+                    IndexStatus status = await this.PollIndexBatchAsync(request.TrancheId, progressRequest, settledFiles, chunk.Length, fileIds.Count);
+
+                    //stop the whole operation on the first batch that does not complete, since the batches
+                    //after it would only be indexing into a vector store the caller is about to reset
+                    if (status != IndexStatus.Completed)
+                    {
+                        //error
+                        double failedProgress = status == IndexStatus.Cancelled ? FSPKConstants.Blazor.Synchronization.CancelledProgress : FSPKConstants.Blazor.Synchronization.FailedProgress;
+                        this._logger.LogError($"Batch {batchId} of tranche {request.TrancheId} finished with status {status}, so the remaining batches were abandoned.");
+
+                        //return
+                        await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.IndexedFileProgress = failedProgress);
+                        return;
+                    }
+
+                    //carry this batch's files into the progress reported by the batches after it
+                    settledFiles += chunk.Length;
+                }
+
+                //advance the tranche now that every batch has completed
+                await this.UpdateTrancheAsync(request.TrancheId, tranche =>
+                {
+                    //apply the indexing
+                    tranche.Status = TrancheStatus.FilesIndexed;
+                    tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.CompletedProgress;
+                });
+
+                //return
+                this._logger.LogInformation($"Finished the background indexing of {fileIds.Pluralize("file")} for tranche {request.TrancheId}.");
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed the background indexing of tranche {request.TrancheId}.");
+                await this.UpdateTrancheAsync(request.TrancheId, tranche => tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.FailedProgress);
+            }
+        }
+
+        /// <summary>
+        /// Loads a single bulk upload tranche.
+        /// </summary>
+        public async Task<TrancheTableEntity> LoadTrancheAsync(Guid trancheId)
+        {
+            //return the matching record, which should be the only one
+            TableClient tranches = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.Tranches);
+            await foreach (TrancheTableEntity tranche in tranches.QueryAsync<TrancheTableEntity>(t => t.RowKey == trancheId.ToString()))
+                return tranche;
+
+            //return
+            return null;
         }
 
         /// <summary>
@@ -306,6 +493,85 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         }
         #endregion
         #region Private Methods
+        /// <summary>
+        /// Loads the Foundry file identifiers recorded against a tranche's tracked files, keyed by the name
+        /// each file was uploaded under.
+        /// </summary>
+        private async Task<Dictionary<string, string>> LoadFileIdsAsync(Guid trancheId)
+        {
+            //collect every tracked file that has been uploaded
+            TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
+            Dictionary<string, string> fileIds = new Dictionary<string, string>();
+            await foreach (TrancheFileTableEntity file in trancheFiles.QueryAsync<TrancheFileTableEntity>(f => f.PartitionKey == trancheId.ToString()))
+                if (!string.IsNullOrWhiteSpace(file.FileId))
+                    fileIds[file.RowKey] = file.FileId;
+
+            //return
+            this._logger.LogInformation($"Loaded {fileIds.Pluralize("file identifier")} for tranche {trancheId}.");
+            return fileIds;
+        }
+
+        /// <summary>
+        /// Polls one indexing batch until it settles, recording the whole operation's progress against the
+        /// tranche as it goes so a caller watching the tranche sees one continuous climb across every batch.
+        /// </summary>
+        private async Task<IndexStatus> PollIndexBatchAsync(Guid trancheId, IndexProgressRequest request, int settledFiles, int batchFiles, int totalFiles)
+        {
+            //initialization
+            int checks = 0;
+
+            //poll until the batch settles
+            while (true)
+            {
+                //a request that could not be read at all is indistinguishable from a failed batch
+                IndexProgressResponse progress = await this._foundryService.GetIndexOperationProgressAsync(request);
+                if (progress == null || progress.IsError)
+                    return IndexStatus.Failed;
+
+                //scale this batch's own progress into the share of the tranche's files it accounts for, so the
+                //batches already behind it are never rolled back; the first batch reports nothing terminal yet,
+                //so hold the floor at the value marking an operation as started yet unsettled, which a reader
+                //would otherwise take to mean nothing had been asked of the tranche at all
+                double overallProgress = (settledFiles + (progress.TotalProgress * batchFiles)) / totalFiles;
+                double reportedProgress = Math.Clamp(overallProgress, FSPKConstants.Blazor.Synchronization.IndexingStarted, FSPKConstants.Blazor.Synchronization.MaxInFlightProgress);
+                await this.UpdateTrancheAsync(trancheId, tranche => tranche.IndexedFileProgress = reportedProgress);
+
+                //return
+                if (progress.Status != IndexStatus.InProgress)
+                    return progress.Status;
+
+                //a batch that never settles must not hold the queue forever
+                checks++;
+                if (checks >= FSPKConstants.Foundry.VectorStores.MaxIndexingChecks)
+                {
+                    //error
+                    this._logger.LogError($"Batch {request} of tranche {trancheId} timed out after {checks.Pluralize("check")}.");
+                    return IndexStatus.Failed;
+                }
+
+                //wait
+                await Task.Delay(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds);
+            }
+        }
+
+        /// <summary>
+        /// Applies a change to a single tranche, reading the record back first so a caller owning only some of
+        /// its fields never overwrites the rest with stale values.
+        /// </summary>
+        private async Task UpdateTrancheAsync(Guid trancheId, Action<TrancheTableEntity> apply)
+        {
+            //update the matching record, which should be the only one
+            TableClient tranches = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.Tranches);
+            await foreach (TrancheTableEntity tranche in tranches.QueryAsync<TrancheTableEntity>(t => t.RowKey == trancheId.ToString()))
+            {
+                //apply the change
+                apply(tranche);
+
+                //save
+                await tranches.UpsertEntityAsync(tranche);
+            }
+        }
+
         /// <summary>
         /// Produces a valid Azure blob container name fragment from a user name.
         /// </summary>

@@ -1,0 +1,31 @@
+@inherits UploadingStatusBase
+
+@if (this.Tranche != null)
+{
+    <div class="indexing-status">
+        @if (this.Tranche.UploadedFileProgress == FSPKConstants.Blazor.Synchronization.FailedProgress)
+        {
+            <p class="sync-manager-error">@FSPKConstants.Blazor.Synchronization.UploadFailed</p>
+        }
+        else if (this.Tranche.UploadedFileProgress >= FSPKConstants.Blazor.Synchronization.CompletedProgress)
+        {
+            <p class="sync-manager-success">@string.Format(FSPKConstants.Blazor.Synchronization.UploadedFilesFormat, this.Tranche.UploadedFileCount)</p>
+        }
+        else if (this.IsUploading)
+        {
+            <ProgressBar Progress="this.Tranche.UploadedFileProgress" Caption="@this.ProgressCaption" DefaultCaption="@FSPKConstants.Blazor.Synchronization.ProcessingStarting" />
+        }
+        else
+        {
+            <div class="sync-manager-form">
+                <label class="sync-manager-label" for="sync-manager-prefix">Prefix</label>
+                <input id="sync-manager-prefix" value="@this.FilePrefix" @oninput="(e) => this.SetFilePrefixAsync(e.Value?.ToString())" placeholder="Optionally only include files starting with...." />
+                <button class="tranche-action-button" disabled="@this.IsBusy" @onclick="this.RequestUploadAsync">Process</button>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(this.Message))
+        {
+            <p class="sync-manager-error">@this.Message</p>
+        }
+    </div>
+}

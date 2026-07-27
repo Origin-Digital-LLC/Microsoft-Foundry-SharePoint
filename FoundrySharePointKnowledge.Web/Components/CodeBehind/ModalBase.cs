@@ -106,13 +106,17 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         }
 
         /// <summary>
-        /// Raises the Affirmed event, then closes the modal.
+        /// Closes the modal, then raises the Affirmed event.
         /// </summary>
         protected async Task HandleOkAsync()
         {
-            //blocking notification, then close
-            await this.Affirmed.InvokeAsync();
+            //close and render before notifying, so a subscriber's long running work happens against the
+            //closed modal and can show its progress over the trigger the dialog was opened from
             this._state = ModalState.Closed;
+            await this.InvokeAsync(StateHasChanged);
+
+            //return
+            await this.Affirmed.InvokeAsync();
         }
 
         /// <summary>

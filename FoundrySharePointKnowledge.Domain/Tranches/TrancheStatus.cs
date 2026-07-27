@@ -6,8 +6,7 @@ namespace FoundrySharePointKnowledge.Domain.Tranches
     public enum TrancheStatus
     {
         Pending = 0,
-        FilesIndexed = 4,
-        FilesIndexing = 3,
+        FilesIndexed = 3,
         FilesUploaded = 2,
         VectorStoreCreated = 1
     }

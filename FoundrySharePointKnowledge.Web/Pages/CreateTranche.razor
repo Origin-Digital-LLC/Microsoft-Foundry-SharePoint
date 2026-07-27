@@ -36,9 +36,7 @@
                             <td class="upload-file-size">@(((double)file.Size).ToSizeString())</td>
                             <td class="upload-file-status">@file.Status</td>
                             <td class="upload-file-progress">
-                                <div class="progress-bar-track">
-                                    <div class="progress-bar-fill" style="width: @($"{(file.Progress * 100):0}%")"></div>
-                                </div>
+                                <ProgressBar Progress="file.Progress" />
                             </td>
                         </tr>
                     }
@@ -60,9 +58,6 @@
     </div>
 
     <div class="overall-progress">
-        <div class="progress-bar-track">
-            <div class="progress-bar-fill" style="width: @($"{(this.OverallProgress * 100):0}%")"></div>
-        </div>
-        <span class="overall-progress-label">@($"{(this.OverallProgress * 100):0}%")</span>
+        <ProgressBar Progress="this.OverallProgress" Caption="@this.OverallProgressCaption" />
     </div>
 }

@@ -32,6 +32,7 @@ using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.API.Middleware;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
+using FoundrySharePointKnowledge.Infrastructure.Managers;
 using FoundrySharePointKnowledge.Infrastructure.Services;
 
 using OpenTelemetry.Logs;
@@ -194,6 +195,8 @@ namespace FoundrySharePointKnowledge.API
 
             //dependency injection
             builder.Services.AddSingleton(sharePointSettings);
+            builder.Services.AddSingleton<IBackgroundQueue, BackgroundQueue>();
+            builder.Services.AddHostedService<BackgroundQueueProcessor>();
             builder.Services.AddScoped<ISearchService, SearchService>();
             builder.Services.AddScoped<IFoundryService, FoundryService>();
             builder.Services.AddScoped<ITrancheService, TrancheService>();

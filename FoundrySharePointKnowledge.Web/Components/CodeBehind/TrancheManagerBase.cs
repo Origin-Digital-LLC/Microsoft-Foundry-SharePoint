@@ -20,6 +20,8 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
     {
         #region Members
         private TrancheTableEntity[] _tranches = Array.Empty<TrancheTableEntity>();
+
+        private readonly Dictionary<Guid, Spinner> _deleteSpinners = new Dictionary<Guid, Spinner>();
         #endregion
 
         #region Properties
@@ -27,6 +29,13 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected IHttpClientFactory _httpClientFactory { get; set; }
 
         protected IReadOnlyList<TrancheTableEntity> Tranches => this._tranches;
+
+        /// <summary>
+        /// The spinner covering each row's delete button, captured by the table so a deletion can spin over the
+        /// row it belongs to; the spinners wrap the delete modals rather than living inside them, since a modal
+        /// discards its trigger content while it is open.
+        /// </summary>
+        protected Dictionary<Guid, Spinner> DeleteSpinners => this._deleteSpinners;
         #endregion
 
         #region Protected Methods
@@ -44,15 +53,31 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         /// </summary>
         protected async Task DeleteTrancheAsync(TrancheTableEntity tranche)
         {
+            //spin over this row's delete button while the container and its table records are torn down
+            await this.SetDeleteSpinStateAsync(tranche.TrancheId, true);
+
             //call the api
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
             string route = FSPKConstants.Routing.API.DeleteTranche.Replace("{containerName}", tranche.ContainerName)
                                                                   .Replace("{trancheId}", tranche.TrancheId.ToString());
-            HttpResponseMessage response = await client.DeleteAsync($"{FSPKConstants.Routing.API.Tranche}/{route}");
+            HttpResponseMessage response;
+
+            try
+            {
+                response = await client.DeleteAsync($"{FSPKConstants.Routing.API.Tranche}/{route}");
+            }
+            finally
+            {
+                //stop spinning while the row is still rendered, since a successful deletion removes it below
+                await this.SetDeleteSpinStateAsync(tranche.TrancheId, false);
+            }
 
             //remove the row on success
             if (response.IsSuccessStatusCode)
+            {
                 this._tranches = this._tranches.Where(t => t.TrancheId != tranche.TrancheId).ToArray();
+                this._deleteSpinners.Remove(tranche.TrancheId);
+            }
 
             //return
             await this.InvokeAsync(StateHasChanged);
@@ -60,6 +85,22 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         #endregion
 
         #region Private Methods
+        /// <summary>
+        /// Starts or stops the spinner covering a single row's delete button.
+        /// </summary>
+        private async Task SetDeleteSpinStateAsync(Guid trancheId, bool isSpinning)
+        {
+            //guard
+            if (!this._deleteSpinners.TryGetValue(trancheId, out Spinner spinner) || spinner == null)
+                return;
+
+            //return
+            if (isSpinning)
+                await spinner.StartSpinningAsync();
+            else
+                await spinner.StopSpinningAsync();
+        }
+
         /// <summary>
         /// Loads all tranches for the current user from the API.
         /// </summary>

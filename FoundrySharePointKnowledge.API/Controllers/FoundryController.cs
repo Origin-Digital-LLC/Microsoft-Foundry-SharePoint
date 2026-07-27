@@ -6,9 +6,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 
 using FoundrySharePointKnowledge.Common;
 using FoundrySharePointKnowledge.Domain.Foundry;
+using FoundrySharePointKnowledge.Domain.Tranches;
 using FoundrySharePointKnowledge.Domain.Settings;
 using FoundrySharePointKnowledge.Domain.Contracts;
 using FoundrySharePointKnowledge.Domain.Foundry.Agents;
@@ -25,7 +27,9 @@ namespace FoundrySharePointKnowledge.API.Controllers
     {
         #region Members
         private readonly IFoundryService _foundryService;
+        private readonly ITrancheService _trancheService;
         private readonly EntraIDSettings _entraIdSettings;
+        private readonly IBackgroundQueue _backgroundQueue;
         private readonly ITokenAcquisition _tokenAcquisition;
         private readonly ITokenExchangeService _tokenExchangeService;
         private readonly FoundryProjectSettings _foundryProjectSettings;
@@ -33,7 +37,9 @@ namespace FoundrySharePointKnowledge.API.Controllers
         #region Initialization
         public FoundryController(ISearchService searchService,
                                  IFoundryService foundryService,
+                                 ITrancheService trancheService,
                                  EntraIDSettings entraIDSettings,
+                                 IBackgroundQueue backgroundQueue,
                                  ILogger<FoundryController> logger,
                                  ITokenAcquisition tokenAcquisition,
                                  ITokenExchangeService tokenExchangeService,
@@ -41,7 +47,9 @@ namespace FoundrySharePointKnowledge.API.Controllers
         {
             //initialization
             this._foundryService = foundryService ?? throw new ArgumentNullException(nameof(foundryService));
+            this._trancheService = trancheService ?? throw new ArgumentNullException(nameof(trancheService));
             this._entraIdSettings = entraIDSettings ?? throw new ArgumentNullException(nameof(entraIDSettings));
+            this._backgroundQueue = backgroundQueue ?? throw new ArgumentNullException(nameof(backgroundQueue));
             this._tokenAcquisition = tokenAcquisition ?? throw new ArgumentNullException(nameof(tokenAcquisition));
             this._tokenExchangeService = tokenExchangeService ?? throw new ArgumentNullException(nameof(tokenExchangeService));
             this._foundryProjectSettings = foundryProjectSettings ?? throw new ArgumentNullException(nameof(foundryProjectSettings));
@@ -191,7 +199,9 @@ namespace FoundrySharePointKnowledge.API.Controllers
         }
 
         /// <summary>
-        /// Uploads files to a Foundry project.
+        /// Starts uploading a tranche's files to a Foundry project in the background; an upload of any size
+        /// outlives its request, so this reports only that the operation was accepted and its progress is
+        /// tracked against the tranche from there.
         /// </summary>
         [HttpPost(FSPKConstants.Routing.API.UploadFiles)]
         public async Task<IActionResult> UploadFilesAsync([FromBody()] UploadFilesRequest uploadFilesRequest)
@@ -201,18 +211,45 @@ namespace FoundrySharePointKnowledge.API.Controllers
 
             try
             {
-                //upload
-                return this.Ok(await this._foundryService.UploadVectorStoreFilesAsync(uploadFilesRequest));
+                //check request
+                if (uploadFilesRequest == null || string.IsNullOrWhiteSpace(uploadFilesRequest.ContainerName))
+                    return this.BadRequest("Please specify the tranche and container to upload.");
+
+                //a tranche that has gone away has nothing to upload
+                TrancheTableEntity tranche = await this._trancheService.LoadTrancheAsync(uploadFilesRequest.TrancheId);
+                if (tranche == null)
+                    return this.NotFound($"Tranche {uploadFilesRequest.TrancheId} was not found.");
+
+                //mark the upload as started before queueing it, so a poll arriving first cannot read the
+                //tranche as though nothing had been asked of it
+                await this._trancheService.EditTrancheAsync(new EditTrancheRequest(tranche)
+                {
+                    //assemble object
+                    UploadedFileProgress = FSPKConstants.Blazor.Synchronization.UploadStarted
+                });
+
+                //hand the upload off to a background worker, which resolves its own services
+                this._backgroundQueue.Enqueue(async (serviceProvider, _) =>
+                {
+                    //upload
+                    ITrancheService trancheService = serviceProvider.GetRequiredService<ITrancheService>();
+                    await trancheService.UploadTrancheFilesAsync(uploadFilesRequest);
+                });
+
+                //return
+                return this.Accepted();
             }
             catch (Exception ex)
             {
                 //error
-                return this.BadRequest($"Failed to upload files to Foundry: {ex.Message}");
+                return this.BadRequest($"Failed to start uploading files to Foundry: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Indexes files in a Foundry project to a vector store.
+        /// Starts indexing a tranche's uploaded files into its vector store in the background; the files are
+        /// indexed one batch at a time and a tranche of any size outlives its request, so this reports only
+        /// that the operation was accepted and its progress is tracked against the tranche from there.
         /// </summary>
         [HttpPost(FSPKConstants.Routing.API.IndexFiles)]
         public async Task<IActionResult> IndexFilesAsync([FromBody()] IndexFilesRequest indexFilesRequest)
@@ -222,20 +259,45 @@ namespace FoundrySharePointKnowledge.API.Controllers
 
             try
             {
-                //index
-                return this.Ok(await this._foundryService.IndexVectorStoreFilesAsync(indexFilesRequest));
+                //check request
+                if (indexFilesRequest == null || string.IsNullOrWhiteSpace(indexFilesRequest.VectorStoreId))
+                    return this.BadRequest("Please specify the tranche and vector store to index.");
+
+                //a tranche that has gone away has nothing to index
+                TrancheTableEntity tranche = await this._trancheService.LoadTrancheAsync(indexFilesRequest.TrancheId);
+                if (tranche == null)
+                    return this.NotFound($"Tranche {indexFilesRequest.TrancheId} was not found.");
+
+                //mark the indexing as started before queueing it, so a poll arriving first cannot read the
+                //tranche as though nothing had been asked of it
+                await this._trancheService.EditTrancheAsync(new EditTrancheRequest(tranche)
+                {
+                    //assemble object
+                    IndexedFileProgress = FSPKConstants.Blazor.Synchronization.IndexingStarted
+                });
+
+                //hand the indexing off to a background worker, which resolves its own services
+                this._backgroundQueue.Enqueue(async (serviceProvider, _) =>
+                {
+                    //index
+                    ITrancheService trancheService = serviceProvider.GetRequiredService<ITrancheService>();
+                    await trancheService.IndexTrancheFilesAsync(indexFilesRequest);
+                });
+
+                //return
+                return this.Accepted();
             }
             catch (Exception ex)
             {
                 //error
-                return this.BadRequest($"Failed to index files to Foundry vector store {indexFilesRequest.VectorStoreId}: {ex.Message}");
+                return this.BadRequest($"Failed to start indexing files to Foundry vector store {indexFilesRequest?.VectorStoreId}: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Gets the progress of an ongoing Foundry vector store indexing operation.
         /// </summary>
-        [HttpGet(FSPKConstants.Routing.API.IndexFilesProgress)]
+        [HttpPost(FSPKConstants.Routing.API.IndexFilesProgress)]
         public async Task<IActionResult> GetIndexOperationProgressAsync([FromBody()] IndexProgressRequest indexProgressRequest)
         {
             //initialization
@@ -249,7 +311,7 @@ namespace FoundrySharePointKnowledge.API.Controllers
             catch (Exception ex)
             {
                 //error
-                return this.BadRequest($"Failed to upload files to Foundry: {ex.Message}");
+                return this.BadRequest($"Failed to get the indexing progress of Foundry vector store {indexProgressRequest?.VectorStoreId}: {ex.Message}");
             }
         }
 

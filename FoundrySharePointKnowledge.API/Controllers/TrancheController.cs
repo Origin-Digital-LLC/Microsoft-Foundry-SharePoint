@@ -140,6 +140,61 @@ namespace FoundrySharePointKnowledge.API.Controllers
         }
 
         /// <summary>
+        /// Reports the progress of a tranche's background upload into the Foundry project.
+        /// </summary>
+        [HttpGet(FSPKConstants.Routing.API.UploadProgress)]
+        public async Task<IActionResult> GetUploadProgressAsync(Guid trancheId)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.GetUploadProgressAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //a tranche that has gone away cannot be reported on
+                TrancheTableEntity tranche = await this._trancheService.LoadTrancheAsync(trancheId);
+                if (tranche == null)
+                    return this.NotFound($"Tranche {trancheId} was not found.");
+
+                //return
+                return this.Ok(new TrancheProgressResponse(tranche, tranche.UploadedFileProgress));
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to get the upload progress of tranche {trancheId}.");
+                return this.BadRequest(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Reports the progress of a tranche's background indexing into its vector store, combining every
+        /// batch the operation is split into.
+        /// </summary>
+        [HttpGet(FSPKConstants.Routing.API.IndexProgress)]
+        public async Task<IActionResult> GetIndexProgressAsync(Guid trancheId)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.GetIndexProgressAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //a tranche that has gone away cannot be reported on
+                TrancheTableEntity tranche = await this._trancheService.LoadTrancheAsync(trancheId);
+                if (tranche == null)
+                    return this.NotFound($"Tranche {trancheId} was not found.");
+
+                //return
+                return this.Ok(new TrancheProgressResponse(tranche, tranche.IndexedFileProgress));
+            }
+            catch (Exception ex)
+            {
+                //error
+                this._logger.LogError(ex, $"Failed to get the index progress of tranche {trancheId}.");
+                return this.BadRequest(ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Records the vector store file identifiers produced by an upload against a tranche's tracked files.
         /// </summary>
         [HttpPost(FSPKConstants.Routing.API.UpdateTrancheFiles)]

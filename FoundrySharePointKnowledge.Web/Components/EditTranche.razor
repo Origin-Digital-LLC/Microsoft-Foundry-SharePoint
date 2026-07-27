@@ -11,11 +11,11 @@ else if (this.Mode == EditTrancheMode.Edit)
             <button class="tranche-action-button" @onclick="openCallback">Edit</button>
         </ClosedContent>
         <MainContent>
-            <input class="tranche-edit-input" @bind:get="this.EditedName" @bind:set="this.SetEditedName" @bind:event="oninput" />
+            <input class="tranche-edit-input tranche-edit-input-wide" @bind:get="this.EditedName" @bind:set="this.SetEditedName" @bind:event="oninput" />
         </MainContent>
     </Modal>
 }
 else
 {
-    <input class="tranche-edit-input" @bind:get="this.Draft.Name" @bind:set="this.SetDraftNameAsync" @bind:event="oninput" placeholder="Tranche name" />
+    <input class="tranche-edit-input tranche-edit-input-wide" @bind:get="this.Draft.Name" @bind:set="this.SetDraftNameAsync" @bind:event="oninput" placeholder="Tranche name" />
 }

@@ -1,17 +1,20 @@
-﻿@inherits LayoutComponentBase
+@inherits MasterPageBase
 
 <AuthorizeView Context="authenticationContext">
     <Authorized>
-        <h1>
-            @authenticationContext.User.Identity.Name
-        </h1>
+        <div class="master-page-header">
+            <h1>
+                @authenticationContext.User.Identity.Name
+            </h1>
+            <button class="logout-button" @onclick="this.Logout">Log Out</button>
+        </div>
+
+        <nav>
+            <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
+            <NavLink href="create-tranche">Create Tranche</NavLink>
+        </nav>
     </Authorized>
 </AuthorizeView>
-
-<nav>
-    <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
-    <NavLink href="create-tranche">Create Tranche</NavLink>
-</nav>
 
 <div>
     @this.Body

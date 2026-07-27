@@ -1,0 +1,14 @@
+@inherits ProgressBarBase
+
+<div class="progress-bar">
+    <div class="progress-bar-row">
+        <div class="progress-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@this.AriaValue">
+            <div class="progress-bar-fill" style="width: @this.Width%"></div>
+        </div>
+        <span class="progress-bar-percentage">@this.PercentageLabel</span>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(this.RenderedCaption))
+    {
+        <p class="progress-bar-caption">@this.RenderedCaption</p>
+    }
+</div>

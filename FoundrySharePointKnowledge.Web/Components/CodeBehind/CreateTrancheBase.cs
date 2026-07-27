@@ -50,6 +50,23 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         protected double OverallProgress => this._overallProgress;
 
         protected int FileCount => this._files.Count;
+
+        /// <summary>
+        /// Describes how much of the batch has been uploaded; the bar itself tracks bytes, so this counts the
+        /// files that have finished rather than deriving them from it. Files waiting to be uploaded have
+        /// nothing worth counting, so this stays empty until the upload starts.
+        /// </summary>
+        protected string OverallProgressCaption
+        {
+            get
+            {
+                //return
+                if (!this._uploading)
+                    return null;
+                else
+                    return string.Format(FSPKConstants.Blazor.Synchronization.UploadProgressFormat, this._files.Count(file => file.Status == UploadStatus.Completed), this._files.Count);
+            }
+        }
         #endregion
 
         #region Public Methods

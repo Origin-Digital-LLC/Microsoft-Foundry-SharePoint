@@ -14,9 +14,27 @@ export function registerDropZone(dropZoneEl, dotNetReference)
 {
     dotNetRef = dotNetReference;
 
+    // A drag the page never cancels is a navigation: the browser opens the dropped file itself, losing
+    // whatever the user was doing. Cancel every drag reaching the document so only the drop zone can
+    // ever act on one.
+    document.addEventListener("dragover", (event) => event.preventDefault());
+    document.addEventListener("drop", (event) => event.preventDefault());
+
     dropZoneEl.addEventListener("dragover", (event) =>
     {
+        // always cancel, so the browser never handles the drag itself
         event.preventDefault();
+
+        // a disabled zone reports that it will not accept the drag, which is what puts the "no drop"
+        // cursor under the pointer; a CSS cursor is ignored while a drag is in progress
+        if (isDisabled(dropZoneEl))
+        {
+            if (event.dataTransfer)
+                event.dataTransfer.dropEffect = "none";
+
+            return;
+        }
+
         dropZoneEl.classList.add("dragover");
     });
 
@@ -27,10 +45,24 @@ export function registerDropZone(dropZoneEl, dotNetReference)
 
     dropZoneEl.addEventListener("drop", async (event) =>
     {
+        // always cancel, so the browser never handles the drop itself
         event.preventDefault();
         dropZoneEl.classList.remove("dragover");
+
+        // a disabled zone swallows the drop entirely
+        if (isDisabled(dropZoneEl))
+            return;
+
         await handleDrop(event);
     });
+}
+
+/**
+ * Indicates whether the drop zone is currently refusing files.
+ */
+function isDisabled(dropZoneEl)
+{
+    return dropZoneEl.classList.contains("disabled");
 }
 
 /**
