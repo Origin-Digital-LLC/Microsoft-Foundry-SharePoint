@@ -293,8 +293,8 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             try
             {
                 //the identifiers were recorded when the tranche's files were uploaded
-                Dictionary<string, string> fileIds = await this.LoadFileIdsAsync(request.TrancheId);
-                if (fileIds.Count == 0)
+                TrancheFileIds fileIds = await this.LoadFileIdsAsync(request.TrancheId);
+                if (fileIds.UploadedCount == 0)
                 {
                     //error
                     this._logger.LogError($"Tranche {request.TrancheId} has no uploaded files to index.");
@@ -302,11 +302,28 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                     return;
                 }
 
-                //split the files across as many batches as the vector store's per-batch cap requires
+                //a tranche whose every file an earlier run already indexed is where this would leave it
+                //anyway, so it is finished rather than failed
+                if (fileIds.PendingCount == 0)
+                {
+                    //advance the tranche without asking the store to index anything twice
+                    this._logger.LogInformation($"Every one of tranche {request.TrancheId}'s {fileIds.UploadedCount.Pluralize("file")} was already indexed.");
+                    await this.UpdateTrancheAsync(request.TrancheId, tranche =>
+                    {
+                        //apply the indexing
+                        tranche.Status = TrancheStatus.FilesIndexed;
+                        tranche.IndexedFileProgress = FSPKConstants.Blazor.Synchronization.CompletedProgress;
+                    });
+
+                    //return
+                    return;
+                }
+
+                //split the files still needing indexing across as many batches as the store's cap requires
                 int settledFiles = 0;
                 List<string> batchIds = new List<string>();
-                string[][] chunks = fileIds.Values.Chunk(FSPKConstants.Foundry.VectorStores.MaxIndexBatchSize).ToArray();
-                this._logger.LogInformation($"Indexing {fileIds.Pluralize("file")} for tranche {request.TrancheId} across {chunks.Pluralize("batch", "es")}.");
+                string[][] chunks = fileIds.PendingFileIds.Values.Chunk(FSPKConstants.Foundry.VectorStores.MaxIndexBatchSize).ToArray();
+                this._logger.LogInformation($"Indexing {fileIds.PendingCount.Pluralize("file")} for tranche {request.TrancheId} across {chunks.Pluralize("batch", "es")}.");
 
                 //work through the batches in series
                 foreach (string[] chunk in chunks)
@@ -318,7 +335,11 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                     //poll this batch alone until it settles
                     IndexProgressRequest progressRequest = new IndexProgressRequest(request.VectorStoreId, new string[] { batchId });
-                    IndexStatus status = await this.PollIndexBatchAsync(request.TrancheId, progressRequest, settledFiles, chunk.Length, fileIds.Count);
+                    IndexStatus status = await this.PollIndexBatchAsync(request.TrancheId, progressRequest, settledFiles, chunk.Length, fileIds.PendingCount);
+
+                    //record which of this batch's files actually landed in the store before judging the batch
+                    //as a whole, since a file that indexed is indexed however the batch it travelled in ended
+                    await this.MarkIndexedFilesAsync(request.TrancheId, request.VectorStoreId, batchId);
 
                     //stop the whole operation on the first batch that does not complete, since the batches
                     //after it would only be indexing into a vector store the caller is about to reset
@@ -346,7 +367,7 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
                 });
 
                 //return
-                this._logger.LogInformation($"Finished the background indexing of {fileIds.Pluralize("file")} for tranche {request.TrancheId}.");
+                this._logger.LogInformation($"Finished the background indexing of {fileIds.PendingCount.Pluralize("file")} for tranche {request.TrancheId}.");
             }
             catch (Exception ex)
             {
@@ -474,19 +495,33 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
         #region Private Methods
         /// <summary>
         /// Loads the Foundry file identifiers recorded against a tranche's tracked files, keyed by the row key
-        /// of the source each one was converted from.
+        /// of the source each one was converted from. A file already in the vector store is counted but held
+        /// back, so indexing a tranche twice picks up where the first run left off rather than paying to index
+        /// everything again.
         /// </summary>
-        private async Task<Dictionary<string, string>> LoadFileIdsAsync(Guid trancheId)
+        private async Task<TrancheFileIds> LoadFileIdsAsync(Guid trancheId)
         {
             //collect every tracked file that has been uploaded
+            int indexedCount = 0;
             TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
-            Dictionary<string, string> fileIds = new Dictionary<string, string>();
+            Dictionary<string, string> pendingFileIds = new Dictionary<string, string>();
+
             await foreach (TrancheFileTableEntity file in trancheFiles.QueryAsync<TrancheFileTableEntity>(f => f.PartitionKey == trancheId.ToString()))
-                if (!string.IsNullOrWhiteSpace(file.FileId))
-                    fileIds[file.RowKey] = file.FileId;
+            {
+                //a file that never uploaded has no identifier to index by
+                if (string.IsNullOrWhiteSpace(file.FileId))
+                    continue;
+
+                //hold back whatever an earlier run already got into the store
+                if (file.IsIndexed)
+                    indexedCount++;
+                else
+                    pendingFileIds[file.RowKey] = file.FileId;
+            }
 
             //return
-            this._logger.LogInformation($"Loaded {fileIds.Pluralize("file identifier")} for tranche {trancheId}.");
+            TrancheFileIds fileIds = new TrancheFileIds(pendingFileIds, indexedCount);
+            this._logger.LogInformation($"Loaded {fileIds.UploadedCount.Pluralize("file identifier")} for tranche {trancheId}, {fileIds.IndexedCount} of them already indexed.");
             return fileIds;
         }
 
@@ -530,6 +565,51 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
 
                 //wait
                 await Task.Delay(FSPKConstants.Foundry.VectorStores.BatchPollingWaitMilliseconds);
+            }
+        }
+
+        /// <summary>
+        /// Marks a tranche's tracked files as indexed, for those of them one batch actually landed in the
+        /// vector store; a file the batch failed to index is deliberately left alone, since the point of the
+        /// record is to tell the two apart.
+        /// </summary>
+        private async Task MarkIndexedFilesAsync(Guid trancheId, string vectorStoreId, string batchId)
+        {
+            try
+            {
+                //ask the vector store which of the batch's files it actually indexed
+                string[] indexedFileIds = await this._foundryService.GetIndexedFileIdsAsync(vectorStoreId, batchId);
+                if (indexedFileIds == null || indexedFileIds.Length == 0)
+                    return;
+
+                //match them back to the tranche's files, which recorded their identifiers when they uploaded
+                HashSet<string> indexedFiles = indexedFileIds.ToHashSet();
+                List<TrancheFileTableEntity> files = new List<TrancheFileTableEntity>();
+                TableClient trancheFiles = this._tableClient.GetTableClient(FSPKConstants.AzureStorage.Tables.TrancheFiles);
+
+                await foreach (TrancheFileTableEntity file in trancheFiles.QueryAsync<TrancheFileTableEntity>(f => f.PartitionKey == trancheId.ToString()))
+                {
+                    //a file already marked by an earlier batch is not worth writing again
+                    if (file.IsIndexed || string.IsNullOrWhiteSpace(file.FileId) || !indexedFiles.Contains(file.FileId))
+                        continue;
+
+                    //collect the match
+                    file.IsIndexed = true;
+                    files.Add(file);
+                }
+
+                //save
+                if (files.Count > 0)
+                    await trancheFiles.PerformBulkTableTansactionAsync(files, TableTransactionActionType.UpsertReplace);
+
+                //return
+                this._logger.LogInformation($"Marked {files.Pluralize("file")} of batch {batchId} as indexed for tranche {trancheId}.");
+            }
+            catch (Exception ex)
+            {
+                //the files are indexed whether or not this bookkeeping succeeded, so a failure here must not
+                //take down an indexing operation that otherwise worked
+                this._logger.LogError(ex, $"Failed to mark the files of batch {batchId} as indexed for tranche {trancheId}.");
             }
         }
 

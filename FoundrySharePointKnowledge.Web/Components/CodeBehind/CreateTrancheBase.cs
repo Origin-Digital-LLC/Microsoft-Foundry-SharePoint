@@ -142,6 +142,11 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
             //recompute overall progress
             this.RecomputeOverallProgress();
 
+            //a batch works its way down the list, so carry the list along with it rather than leaving the
+            //user watching rows that finished long ago; a completion is what moves it, since byte-level
+            //progress arrives far too often to scroll on
+            await this.FollowUploadAsync();
+
             //if the whole batch just finished with no failures, record the tranche's files, give the
             //user a moment to see the completed progress bar, then reset the page for the next batch
             if (this._files.All(f => f.Status == UploadStatus.Completed))
@@ -205,8 +210,10 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
             this._trancheId = session.TrancheId;
             this._containerName = session.ContainerName;
 
-            //hand off to the browser to upload each file directly to storage
-            await this._module.InvokeVoidAsync("startUpload", session.SasURI, FSPKConstants.AzureStorage.Blobs.UploadConcurrency, this._selfRef);
+            //hand off to the browser to upload each file directly to storage, naming the files it should
+            //upload so nothing the browser is still holding can reach the container uninvited
+            string[] fileIds = this._files.Select(file => file.Id).ToArray();
+            await this._module.InvokeVoidAsync("startUpload", session.SasURI, fileIds, FSPKConstants.AzureStorage.Blobs.UploadConcurrency, this._selfRef);
         }
 
         /// <summary>
@@ -235,6 +242,11 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
         /// </summary>
         protected async Task ResetAsync()
         {
+            //the browser holds the dropped files itself, so clearing only this page's copy would leave them
+            //to be uploaded again into whichever tranche is created next
+            if (this._module != null)
+                await this._module.InvokeVoidAsync("resetUpload");
+
             //reset page state
             this._uploading = false;
             this._trancheId = Guid.Empty;
@@ -279,6 +291,25 @@ namespace FoundrySharePointKnowledge.Web.Components.CodeBehind
             //notify the api
             HttpClient client = this._httpClientFactory.CreateClient(nameof(FSPKConstants.Settings.Blazor.API));
             await client.PostAsJsonAsync($"{FSPKConstants.Routing.API.Tranche}/{FSPKConstants.Routing.API.Complete}", request);
+        }
+
+        /// <summary>
+        /// Scrolls the file list to wherever the batch has got to, which is the last file the uploads have
+        /// started on rather than the last one to finish, since files upload several at a time.
+        /// </summary>
+        private async Task FollowUploadAsync()
+        {
+            //guard
+            if (this._module == null)
+                return;
+
+            //find the furthest file the batch has reached
+            int activeIndex = this._files.FindLastIndex(file => file.Status != UploadStatus.Pending);
+            if (activeIndex < 0)
+                return;
+
+            //return
+            await this._module.InvokeVoidAsync("followUploadRow", this._dropZone, activeIndex);
         }
 
         /// <summary>

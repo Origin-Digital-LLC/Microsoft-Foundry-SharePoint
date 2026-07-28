@@ -24,6 +24,18 @@ namespace FoundrySharePointKnowledge.Domain.Contracts
         Task<string> AddIndexBatchAsync(string vectorStoreId, string[] fileIds);
 
         /// <summary>
+        /// Gets a vector store along with every file attached to it, which is the service's own account of
+        /// what an indexing run landed rather than anything this solution recorded alongside it.
+        /// </summary>
+        Task<VectorStoreDetail> GetVectorStoreAsync(string vectorStoreId);
+
+        /// <summary>
+        /// Gets the identifiers of the files one batch actually landed in a vector store, which is what tells
+        /// a caller tracking individual files which of them made it in and which did not.
+        /// </summary>
+        Task<string[]> GetIndexedFileIdsAsync(string vectorStoreId, string batchId);
+
+        /// <summary>
         /// Uploads a tranche's blobs into a Foundry project as markdown, reporting how many of how many files
         /// have been dealt with so a caller running this in the background can record its progress; the total
         /// is only known once the container has been listed, so it is reported alongside every count.

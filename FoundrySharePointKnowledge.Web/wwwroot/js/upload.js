@@ -6,6 +6,11 @@
 const fileMap = new Map();      // id -> { file, relativePath }
 let activeXhrs = [];            // in-flight XMLHttpRequest instances
 let dotNetRef = null;           // reference to the .NET CreateTrancheBase component
+let isFollowing = true;         // whether the file list should keep the batch's current row in view
+let lastFollowScrollTop = 0;    // the scroll position this module last set, to tell its own scrolling apart
+
+// how far the list may drift from this module's own scrolling before a scroll counts as the user's
+const followToleranceInPixels = 4;
 
 /**
  * Registers drag-and-drop handlers on the drop zone element.
@@ -70,6 +75,13 @@ function isDisabled(dropZoneEl)
  */
 async function handleDrop(event)
 {
+    // A drop replaces the working set rather than adding to it, which is what .NET does with the list it
+    // is handed. Leaving the previous drop's files in the map would upload them alongside this one's,
+    // into a container that never hears about them.
+    fileMap.clear();
+    isFollowing = true;
+    lastFollowScrollTop = 0;
+
     const items = event.dataTransfer ? event.dataTransfer.items : null;
     const collected = [];
 
@@ -181,24 +193,42 @@ function addFile(file, relativePath, collected)
 }
 
 /**
- * Uploads all mapped files directly to Azure Storage using the container SAS URL, with a
+ * Uploads the requested files directly to Azure Storage using the container SAS URL, with a
  * concurrency-limited pool. Reports progress and completion back to .NET.
+ *
+ * The caller names the files to upload rather than this module uploading everything it happens to be
+ * holding: .NET owns the list the page shows and the list the tranche is told about, so anything it did
+ * not ask for would land in the container without ever being tracked against the tranche.
  */
-export async function startUpload(sasUri, concurrency, dotNetReference)
+export async function startUpload(sasUri, fileIds, concurrency, dotNetReference)
 {
     dotNetRef = dotNetReference;
     activeXhrs = [];
+    isFollowing = true;
 
     // Split the SAS URI into the container base URL and the query string.
     const queryIndex = sasUri.indexOf("?");
     const baseUrl = queryIndex >= 0 ? sasUri.substring(0, queryIndex) : sasUri;
     const query = queryIndex >= 0 ? sasUri.substring(queryIndex) : "";
 
-    // Build the work queue.
+    // Build the work queue from what .NET asked for, in the order it asked for it.
     const jobs = [];
 
-    for (const [id, entry] of fileMap.entries())
-        jobs.push({ id: id, file: entry.file, relativePath: entry.relativePath });
+    for (const id of fileIds)
+    {
+        const entry = fileMap.get(id);
+
+        if (entry)
+        {
+            jobs.push({ id: id, file: entry.file, relativePath: entry.relativePath });
+        }
+        else if (dotNetRef)
+        {
+            // A file the browser no longer holds can never upload, and .NET waits on every file it listed,
+            // so it has to be failed here rather than left pending forever.
+            await dotNetRef.invokeMethodAsync("OnFileComplete", id, false);
+        }
+    }
 
     let cursor = 0;
 
@@ -280,6 +310,74 @@ function uploadOne(id, file, relativePath, baseUrl, query)
         activeXhrs.push(xhr);
         xhr.send(file);
     });
+}
+
+/**
+ * Keeps the row a batch has reached in view as its uploads walk down the list, so a batch too long to fit
+ * on screen still shows what is being worked on. The row is centred rather than pushed to the top, which
+ * keeps it clear of the table's sticky header and leaves the files either side of it visible.
+ */
+export function followUploadRow(dropZoneEl, rowIndex)
+{
+    const wrapper = dropZoneEl ? dropZoneEl.querySelector(".upload-table-wrapper") : null;
+
+    if (!wrapper || rowIndex < 0)
+        return;
+
+    // the user takes precedence over this, so watch for scrolling this module did not do
+    bindFollowSuspension(wrapper);
+
+    // a list that fits has nothing to follow, and a user who scrolled away asked to be left alone
+    if (!isFollowing || wrapper.scrollHeight <= wrapper.clientHeight)
+        return;
+
+    const row = wrapper.querySelectorAll("tbody tr")[rowIndex];
+
+    if (!row)
+        return;
+
+    // move by the gap between where the row is and where the middle of the list is
+    const rowRect = row.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const delta = (rowRect.top - wrapperRect.top) - ((wrapper.clientHeight - rowRect.height) / 2);
+
+    wrapper.scrollTop += delta;
+
+    // read the position back, since the browser clamps it at either end of the list
+    lastFollowScrollTop = wrapper.scrollTop;
+}
+
+/**
+ * Stops following the batch as soon as the user scrolls the list themselves, and picks it up again if they
+ * scroll back to the bottom, which is the usual way of asking to be carried along again.
+ */
+function bindFollowSuspension(wrapper)
+{
+    if (wrapper.dataset.followBound === "true")
+        return;
+
+    wrapper.dataset.followBound = "true";
+    wrapper.addEventListener("scroll", () =>
+    {
+        // a position this module did not set is the user's doing
+        if (Math.abs(wrapper.scrollTop - lastFollowScrollTop) <= followToleranceInPixels)
+            return;
+
+        const distanceFromBottom = wrapper.scrollHeight - wrapper.scrollTop - wrapper.clientHeight;
+        isFollowing = distanceFromBottom <= followToleranceInPixels;
+    });
+}
+
+/**
+ * Clears module state once a batch has finished, so the files it uploaded cannot follow the page into
+ * whatever tranche is created next.
+ */
+export function resetUpload()
+{
+    activeXhrs = [];
+    fileMap.clear();
+    isFollowing = true;
+    lastFollowScrollTop = 0;
 }
 
 /**

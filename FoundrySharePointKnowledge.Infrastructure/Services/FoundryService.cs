@@ -972,6 +972,59 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             }
         }
 
+        /// <summary>
+        /// Gets a vector store along with every file attached to it. The store's own counts are what settle
+        /// how much of a tranche actually landed, since the portal's file listing pages at a hundred and this
+        /// solution's record of what indexed is only ever a copy that can fall behind.
+        /// </summary>
+        public async Task<VectorStoreDetail> GetVectorStoreAsync(string vectorStoreId)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
+            string message = $" vector store {vectorStoreId}";
+
+            try
+            {
+                //get foundry clients
+                AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+                ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+                VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+                //read the store itself, which carries the service's tally of its files
+                this._logger.LogInformation($"Getting{message}.");
+                ClientResult<VectorStore> vectorStore = await vectorStoreClient.GetVectorStoreAsync(vectorStoreId);
+                vectorStore.EnsureSuccess($"Failed to get{message}", this._logger);
+
+                //ask for the largest page the service allows, since a store holding thousands of files would
+                //otherwise be walked twenty at a time
+                List<VectorStoreFile> files = new List<VectorStoreFile>();
+                VectorStoreFileCollectionOptions collectionOptions = new VectorStoreFileCollectionOptions()
+                {
+                    //assemble object
+                    PageSizeLimit = FSPKConstants.Foundry.VectorStores.MaxFilePageSize
+                };
+
+                //collect every page of the store's files, unfiltered, since a caller asking what is in a store
+                //is owed the files that failed to index just as much as the ones that did
+                await foreach (VectorStoreFile file in vectorStoreClient.GetVectorStoreFilesAsync(vectorStoreId, collectionOptions))
+                    files.Add(file);
+
+                //return
+                VectorStoreDetail vectorStoreDetail = new VectorStoreDetail(vectorStore.Value, files.ToArray());
+                this._logger.LogInformation($"Found{message} holding {files.Pluralize("file")}, {vectorStoreDetail.Completed} of {vectorStoreDetail.Total} indexed.");
+                return vectorStoreDetail;
+            }
+            catch (Exception ex)
+            {
+                //error
+                string error = $"Failed to get{message}.";
+                this._logger.LogError(ex, error);
+
+                //return
+                return new VectorStoreDetail(error);
+            }
+        }
+
         ///// <summary>
         ///// Calls an agent to reason over files whose names start with the given prefix.
         ///// </summary>
@@ -1274,6 +1327,41 @@ namespace FoundrySharePointKnowledge.Infrastructure.Services
             //return
             this._logger.LogInformation($"Started batch {batch.BatchId} indexing {fileIds.Pluralize("file")} into vector store {vectorStoreId}.");
             return batch.BatchId;
+        }
+
+        /// <summary>
+        /// Gets the identifiers of the files one batch actually landed in a vector store, which is what tells
+        /// a caller tracking individual files which of them made it in and which did not.
+        /// </summary>
+        public async Task<string[]> GetIndexedFileIdsAsync(string vectorStoreId, string batchId)
+        {
+            //initialization
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(batchId);
+            ArgumentNullException.ThrowIfNullOrWhiteSpace(vectorStoreId);
+
+            //get foundry clients
+            AIProjectClient projectClient = this.GetFoundryClient(this._entraIDSettings.ToCredential());
+            ProjectOpenAIClient openAIClient = projectClient.GetProjectOpenAIClient();
+            VectorStoreClient vectorStoreClient = openAIClient.GetVectorStoreClient();
+
+            //ask the store for the batch's finished files alone, so a batch at the size cap is not paged
+            //through in full only for most of it to be thrown away
+            List<string> fileIds = new List<string>();
+            VectorStoreFileCollectionOptions collectionOptions = new VectorStoreFileCollectionOptions()
+            {
+                //assemble object
+                Filter = VectorStoreFileStatusFilter.Completed,
+                PageSizeLimit = FSPKConstants.Foundry.VectorStores.MaxFilePageSize
+            };
+
+            //collect every page of the batch's files
+            await foreach (VectorStoreFile file in vectorStoreClient.GetVectorStoreFilesInBatchAsync(vectorStoreId, batchId, collectionOptions, CancellationToken.None))
+                if (file.Status == VectorStoreFileStatus.Completed && !string.IsNullOrWhiteSpace(file.FileId))
+                    fileIds.Add(file.FileId);
+
+            //return
+            this._logger.LogInformation($"Batch {batchId} indexed {fileIds.Pluralize("file")} into vector store {vectorStoreId}.");
+            return fileIds.ToArray();
         }
 
         /// <summary>

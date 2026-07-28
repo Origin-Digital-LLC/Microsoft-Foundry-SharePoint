@@ -349,6 +349,31 @@ namespace FoundrySharePointKnowledge.API.Controllers
             //return
             return this.Ok(this._foundryProjectSettings);
         }
+
+        /// <summary>
+        /// Gets a Foundry vector store by id, along with every file attached to it.
+        /// </summary>
+        [HttpGet(FSPKConstants.Routing.API.GetVectorStore)]
+        public async Task<IActionResult> GetVectorStoreAsync(string vectorStoreId)
+        {
+            //initialization
+            this._logger.LogInformation($"Handling request to {nameof(this.GetVectorStoreAsync)} from {this.HttpContext.Connection.RemoteIpAddress}.");
+
+            try
+            {
+                //check request
+                if (string.IsNullOrWhiteSpace(vectorStoreId))
+                    return this.BadRequest("Please specify the vector store to get.");
+
+                //get
+                return this.Ok(await this._foundryService.GetVectorStoreAsync(vectorStoreId));
+            }
+            catch (Exception ex)
+            {
+                //error
+                return this.BadRequest($"Failed to get Foundry vector store {vectorStoreId}: {ex.Message}");
+            }
+        }
         #endregion
     }
 }

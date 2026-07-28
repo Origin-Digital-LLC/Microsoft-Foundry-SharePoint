@@ -15,6 +15,7 @@ namespace FoundrySharePointKnowledge.Domain.Tranches
         public long FileSize { get; set; }
         public string RowKey { get; set; }
         public string FileId { get; set; }
+        public bool IsIndexed { get; set; }
         public string ContentType { get; set; }
         public string PartitionKey { get; set; }
         public DateTimeOffset? Timestamp { get; set; }

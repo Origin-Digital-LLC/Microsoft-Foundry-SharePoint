@@ -418,6 +418,7 @@ namespace FoundrySharePointKnowledge.Common
             public static class VectorStores
             {
                 public const int MaxIndexingChecks = 200;
+                public const int MaxFilePageSize = 100;
                 public const int MaxIndexBatchSize = 500;
                 public const string BatchIdDelimiter = ",";
                 public const int BatchPollingWaitMilliseconds = 2 * 1000;
@@ -592,6 +593,7 @@ namespace FoundrySharePointKnowledge.Common
                 public const string DeleteExisting = "/{deleteExisting:bool=true}";
                 public const string PromoteFoundryAgents = "promote-foundry-agents";
                 public const string MigrateStorageAccount = "migrate-storage-account";
+                public const string GetVectorStore = "get-vector-store/{vectorStoreId}";
                 public const string DeleteTranche = "delete/{containerName}/{trancheId}";
                 public const string GetFoundryProjectSettings = "get-foundry-project-setting";
                 public const string DeploySharePointDocumentsSearchTopography = "deploy-sharepoint-documents-search-topography" + API.DeleteExisting;
