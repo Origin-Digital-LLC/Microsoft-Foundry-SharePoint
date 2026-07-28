@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+
 using FoundrySharePointKnowledge.Common;
 
 namespace FoundrySharePointKnowledge.Domain.Foundry.Agents

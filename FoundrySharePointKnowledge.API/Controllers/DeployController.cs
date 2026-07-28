@@ -10,7 +10,7 @@ using FoundrySharePointKnowledge.Domain.Contracts;
 namespace FoundrySharePointKnowledge.API.Controllers
 {
     /// <summary>
-    /// These endpoitns deploy the search topography.
+    /// These endpoints deploy the search topography.
     /// </summary>
     public class DeployController : BaseController<DeployController>
     {
